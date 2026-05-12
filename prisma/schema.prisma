@@ -1,0 +1,153 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Brand {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  slug        String    @unique
+  logo        String?
+  description String?   @db.Text
+  website     String?
+  status      String    @default("Active")
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Category {
+  id            String    @id @default(uuid())
+  name          String
+  slug          String    @unique
+  status        String    @default("Active") // "Active" or "Inactive"
+  icon          String    @default("Grid")   // e.g. "Droplet", "Sun", "Heart"
+  description   String?   @db.Text
+  image         String?                      // Local image path
+  subcategories String[]  @default([])       // Added subcategories list
+  products      Product[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Product {
+  id               String        @id // We use explicit Product ID (e.g., "EL-CLN-VC-150") as @id
+  sku              String        @unique
+  name             String
+  categoryId       String
+  category         Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  brandId          String?
+  brand            Brand?        @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  subcategory      String?
+  hasOffer         Boolean       @default(false)
+  rating           Float         @default(0.0)
+  reviewCount      Int           @default(0)
+  shortDescription String?       @db.Text
+  description      String?       @db.Text
+  ingredients      String[]      @default([]) // Uses PostgreSQL native Text[] array
+  howToUse         String[]      @default([]) // Uses PostgreSQL native Text[] array
+  image            String?                    // Main image path (local uploads)
+  gallery          String[]      @default([]) // Uses PostgreSQL native Text[] array for multiple image paths
+  isOutOfStock     Boolean       @default(false)
+  sizes            ProductSize[]
+  reviews          Review[]
+  wishlistedBy     User[]        @relation("UserWishlists")
+  offers           Offer[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model ProductSize {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  label     String   // e.g., "15 ml" or "30 ml"
+  price     Float
+  oldPrice  Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  author    String   // e.g., "Nusrat J."
+  rating    Float    // e.g., 4.8
+  date      DateTime @default(now())
+  title     String?
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("USER") // "USER" or "ADMIN"
+  lastLogin DateTime?
+  lastIp    String?
+  phone     String?
+  address   String?
+  wishlist  Product[] @relation("UserWishlists")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SiteSettings {
+  id                 String   @id @default("default")
+  logo               String   @default("")
+  logoAlt            String   @default("Elara")
+  banners            Json     @default("[]") // [{ image, smallText, title, buttonText, buttonLink }]
+  socialProfileUrl   String   @default("https://instagram.com")
+  featuredProductIds String[] @default([])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Order {
+  id            String   @id @default(uuid())
+  userId        String?  // Link if user is logged in
+  customerName  String
+  phone         String
+  address       String
+  city          String   // e.g. "Inside Dhaka", "Outside Dhaka"
+  shipping      Float
+  total         Float
+  status        String   @default("Pending") // "Pending", "Processing", "Delivered", "Cancelled"
+  paymentMethod String   @default("Cash on Delivery")
+  items         Json     // Array of: [{ id, name, size, price, quantity, image }]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SocialPost {
+  id        String   @id @default(uuid())
+  type      String   @default("image") // "image" or "video"
+  mediaUrl  String
+  link      String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Offer {
+  id              String    @id @default(uuid())
+  title           String
+  code            String?   @unique
+  discountType    String    // "PERCENTAGE" or "FIXED"
+  discountValue   Float
+  status          String    @default("ACTIVE")
+  isFlashSale     Boolean   @default(false)
+  startDate       DateTime?
+  endDate         DateTime?
+  products        Product[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
