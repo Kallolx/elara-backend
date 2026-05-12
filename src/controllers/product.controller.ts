@@ -1,33 +1,60 @@
 import { Request, Response, NextFunction } from "express";
 import prisma from "../config/database";
 
-// Fetch all products with their categories, sizes, and reviews
+// Fetch all products with pagination, search, and filtering capabilities
 export const getAllProducts = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { categoryId, brandId } = req.query;
+    const { categoryId, brandId, search } = req.query;
+    
+    // Pagination controls
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 0; // default 0 means fetch all for compatibility
+    const skip = limit > 0 ? (page - 1) * limit : undefined;
+    const take = limit > 0 ? limit : undefined;
 
-    const products = await prisma.product.findMany({
-      where: {
-        ...(categoryId ? { categoryId: String(categoryId) } : {}),
-        ...(brandId ? { brandId: String(brandId) } : {}),
-      },
-      include: {
-        category: {
-          select: { name: true, slug: true },
+    // Dynamic query conditions
+    const whereConditions: any = {
+      ...(categoryId ? { categoryId: String(categoryId) } : {}),
+      ...(brandId ? { brandId: String(brandId) } : {}),
+    };
+
+    // Highly optimized Name & SKU Fuzzy Search Injection
+    if (search && String(search).trim().length > 0) {
+      const cleanSearch = String(search).trim();
+      whereConditions.OR = [
+        { name: { contains: cleanSearch, mode: "insensitive" } },
+        { sku: { contains: cleanSearch, mode: "insensitive" } },
+      ];
+    }
+
+    // Execute total metric aggregation and entity collection in parallel
+    const [products, totalCount] = await Promise.all([
+      prisma.product.findMany({
+        where: whereConditions,
+        include: {
+          category: { select: { name: true, slug: true } },
+          brand: true,
+          offers: true,
+          sizes: { orderBy: { price: "asc" } },
+          reviews: { orderBy: { date: "desc" } },
         },
-        brand: true,
-        offers: true,
-        sizes: {
-          orderBy: { price: "asc" },
-        },
-        reviews: {
-          orderBy: { date: "desc" },
-        },
-      },
-      orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+      prisma.product.count({ where: whereConditions }),
+    ]);
+
+    res.status(200).json({ 
+      success: true, 
+      data: products,
+      pagination: {
+        total: totalCount,
+        page: page,
+        limit: limit > 0 ? limit : totalCount,
+        totalPages: limit > 0 ? Math.ceil(totalCount / limit) : 1
+      }
     });
-
-    res.status(200).json({ success: true, data: products });
   } catch (error) {
     next(error);
   }
