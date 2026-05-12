@@ -51,85 +51,124 @@ export const scrapeKobaProducts = async (req: any, res: any, next: any) => {
     console.log("⏳ Waiting for credentials validation...");
     await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 15000 });
 
-    // 3. Navigate directly to Reseller Products Dashboard
-    const { url } = req.body;
-    const targetUrl = url || "https://www.kobareseller.com/dashboard/products";
-    console.log(`📍 Fetching product listings from: ${targetUrl}...`);
-    await page.goto(targetUrl, {
-      waitUntil: "networkidle2",
-    });
+    // 3. Determine range of pages to scrape
+    const { url, maxPages = 1 } = req.body;
+    const initialTarget = url || "https://www.kobareseller.com/dashboard/products";
+    
+    let aggregatedProducts: any[] = [];
+    const limit = Math.max(1, Math.min(10, Number(maxPages))); // Ceiling of 10 safety limit
+    
+    console.log(`📡 Starting multi-page gathering (Limit: ${limit} pages)`);
 
-    // 4. Extract and parse items with clean title parsing
-    const products = await page.evaluate((url) => {
-      const items: any[] = [];
-      const imgElements = Array.from(document.querySelectorAll("img"));
-
-      imgElements.forEach((img) => {
-        const src = img.getAttribute("src") || "";
-        if (!src || src.includes("logo") || src.includes("avatar")) return;
-
-        let parent = img.parentElement;
-        let cardText = "";
-        let iterations = 0;
-
-        while (parent && iterations < 5) {
-          cardText = parent.textContent || "";
-          if (cardText.includes("SKU:") && cardText.includes("Price")) {
-            break;
-          }
-          parent = parent.parentElement;
-          iterations++;
-        }
-
-        if (parent && cardText.includes("SKU:") && cardText.includes("Price")) {
-          const rawTitle = parent.textContent || "";
-          // Clean title by splitting at the SKU mark
-          const name = rawTitle.split("SKU:")[0].trim();
-          
-          const skuMatch = cardText.match(/SKU:\s*([A-Z0-9-]+)/i) || cardText.match(/SKU:\s*(\d+)/i);
-          const sku = skuMatch ? skuMatch[1] : "";
-
-          const priceMatch = cardText.replace(/\s/g, "").match(/Price৳(\d+)/i) || 
-                             cardText.replace(/\s/g, "").match(/৳(\d+)/i);
-          const price = priceMatch ? Number(priceMatch[1]) : 1200;
-
-          const commissionMatch = cardText.replace(/\s/g, "").match(/Commission৳([\d.]+)/i);
-          const commission = commissionMatch ? Number(commissionMatch[1]) : 0;
-
-          // Parse stock quantity or statuses dynamically
-          const stockMatch = cardText.match(/(?:Stock|Qty|Available|Quantity):\s*(\d+)/i);
-          let stockStatus = stockMatch ? `${stockMatch[1]} Units` : "Unknown";
-          
-          let isOutOfStock = /Out\s*of\s*Stock/i.test(cardText) || /Sold\s*Out/i.test(cardText);
-          
-          // If explicitly states 'In Stock' but no number, label it
-          if (stockStatus === "Unknown" && /In\s*Stock/i.test(cardText)) {
-             stockStatus = "In Stock";
-          } else if (isOutOfStock) {
-             stockStatus = "Out of Stock";
-          }
-
-          if (sku && !items.some((item) => item.sku === sku)) {
-            items.push({
-              sku: `KOBA-${sku}`,
-              name: name,
-              price: price,
-              commission: commission,
-              stockStatus: stockStatus,
-              isOutOfStock: isOutOfStock,
-              oldPrice: Math.round(price * 1.15), // Auto retail margin of 15% markup
-              image: src,
-              url: url,
-              category: "Skin Care",
-              shortDescription: `Authentic Koba Reseller skincare product: ${name}.`,
-              description: `This premium ${name} is sourced directly from your Koba Reseller dashboard. High-potency, reseller commission-based skin therapy.`,
-            });
-          }
-        }
+    for (let currentPage = 1; currentPage <= limit; currentPage++) {
+      // Build iterated URL
+      let finalUrl = new URL(initialTarget);
+      
+      // If there's already a page in URL, respect start point, else overwrite/append
+      const initialPage = Number(finalUrl.searchParams.get("page")) || 1;
+      const activePage = (initialPage + currentPage - 1);
+      
+      finalUrl.searchParams.set("page", String(activePage));
+      const currentUrlStr = finalUrl.toString();
+      
+      console.log(`📍 [Page ${activePage}] Fetching products from: ${currentUrlStr}...`);
+      
+      await page.goto(currentUrlStr, {
+        waitUntil: "networkidle2",
       });
 
-      return items;
-    }, targetUrl);
+      // Standard delay to handle dynamic rendering / hydration
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 4. Extract current page payload
+      const pageItems = await page.evaluate((extUrl) => {
+        const items: any[] = [];
+        const imgElements = Array.from(document.querySelectorAll("img"));
+
+        imgElements.forEach((img) => {
+          const src = img.getAttribute("src") || "";
+          if (!src || src.includes("logo") || src.includes("avatar")) return;
+
+          let parent = img.parentElement;
+          let cardText = "";
+          let iterations = 0;
+
+          while (parent && iterations < 5) {
+            cardText = parent.textContent || "";
+            if (cardText.includes("SKU:") && cardText.includes("Price")) {
+              break;
+            }
+            parent = parent.parentElement;
+            iterations++;
+          }
+
+          if (parent && cardText.includes("SKU:") && cardText.includes("Price")) {
+            const rawTitle = parent.textContent || "";
+            const name = rawTitle.split("SKU:")[0].trim();
+            
+            const skuMatch = cardText.match(/SKU:\s*([A-Z0-9-]+)/i) || cardText.match(/SKU:\s*(\d+)/i);
+            const sku = skuMatch ? skuMatch[1] : "";
+
+            const priceMatch = cardText.replace(/\s/g, "").match(/Price৳(\d+)/i) || 
+                               cardText.replace(/\s/g, "").match(/৳(\d+)/i);
+            const price = priceMatch ? Number(priceMatch[1]) : 1200;
+
+            const commissionMatch = cardText.replace(/\s/g, "").match(/Commission৳([\d.]+)/i);
+            const commission = commissionMatch ? Number(commissionMatch[1]) : 0;
+
+            const stockMatch = cardText.match(/(?:Stock|Qty|Available|Quantity):\s*(\d+)/i);
+            let stockStatus = stockMatch ? `${stockMatch[1]} Units` : "Unknown";
+            
+            let isOutOfStock = /Out\s*of\s*Stock/i.test(cardText) || /Sold\s*Out/i.test(cardText);
+            if (stockStatus === "Unknown" && /In\s*Stock/i.test(cardText)) {
+               stockStatus = "In Stock";
+            } else if (isOutOfStock) {
+               stockStatus = "Out of Stock";
+            }
+
+            if (sku && !items.some((item) => item.sku === sku)) {
+              items.push({
+                sku: `KOBA-${sku}`,
+                name: name,
+                price: price,
+                commission: commission,
+                stockStatus: stockStatus,
+                isOutOfStock: isOutOfStock,
+                oldPrice: Math.round(price * 1.15),
+                image: src,
+                url: extUrl,
+                category: "Skin Care",
+                shortDescription: `Authentic Koba Reseller skincare product: ${name}.`,
+                description: `This premium ${name} is sourced directly from your Koba Reseller dashboard.`,
+              });
+            }
+          }
+        });
+        return items;
+      }, currentUrlStr);
+
+      console.log(`✅ Page ${activePage} done. Found ${pageItems.length} items.`);
+      
+      if (pageItems.length === 0) {
+        console.log("🛑 No items found on this page. Terminating multi-gather early.");
+        break;
+      }
+
+      aggregatedProducts.push(...pageItems);
+      
+      // Optional spacing to minimize bot blocking
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // De-duplicate aggregated collection by SKU just in case
+    const seen = new Set();
+    const products = aggregatedProducts.filter(item => {
+      const duplicate = seen.has(item.sku);
+      seen.add(item.sku);
+      return !duplicate;
+    });
+
+
 
     console.log(`🎉 Successfully scraped ${products.length} live reseller products!`);
 
