@@ -12,6 +12,7 @@ import socialRoutes from "./social-post.routes";
 import statsRoutes from "./stats.routes";
 import wishlistRoutes from "./wishlist.routes";
 import offerRoutes from "./offer.routes";
+import searchRoutes from "./search.routes";
 
 const router = Router();
 
@@ -29,6 +30,7 @@ router.use("/social", socialRoutes);
 router.use("/stats", statsRoutes);
 router.use("/wishlist", wishlistRoutes);
 router.use("/offers", offerRoutes);
+router.use("/search", searchRoutes);
 
 
 export default router;
