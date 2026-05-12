@@ -106,7 +106,6 @@ model SiteSettings {
   logoAlt            String   @default("Elara")
   banners            Json     @default("[]") // [{ image, smallText, title, buttonText, buttonLink }]
   socialProfileUrl   String   @default("https://instagram.com")
-  featuredProductIds String[] @default([])
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }

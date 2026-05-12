@@ -47,7 +47,6 @@ export const updateSiteSettings = async (req: Request, res: Response, next: Next
       logoAlt,
       banners,
       socialProfileUrl,
-      featuredProductIds,
     } = req.body;
 
     const settings = await prisma.siteSettings.upsert({
@@ -57,7 +56,6 @@ export const updateSiteSettings = async (req: Request, res: Response, next: Next
         logoAlt,
         banners: banners || [],
         socialProfileUrl,
-        featuredProductIds: featuredProductIds || [],
       },
       create: {
         id: "default",
@@ -65,7 +63,6 @@ export const updateSiteSettings = async (req: Request, res: Response, next: Next
         logoAlt: logoAlt || "Elara",
         banners: banners || [],
         socialProfileUrl: socialProfileUrl || "https://instagram.com",
-        featuredProductIds: featuredProductIds || [],
       },
     });
 
