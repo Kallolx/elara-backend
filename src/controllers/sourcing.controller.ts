@@ -8,8 +8,10 @@ export const scrapeKobaProducts = async (req: any, res: any, next: any) => {
     console.log("🚀 Launching Puppeteer for live reseller scraping...");
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      executablePath: process.platform === "win32" 
+        ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" 
+        : undefined,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
 
     const page = await browser.newPage();
@@ -211,8 +213,10 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
     console.log("🚀 Initiating Full Background Automated Stock Sync...");
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      executablePath: process.platform === "win32" 
+        ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" 
+        : undefined,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
 
     const page = await browser.newPage();
