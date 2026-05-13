@@ -126,7 +126,7 @@ export const scrapeKobaProducts = async (req: any, res: any, next: any) => {
 
             if (sku && !items.some((item) => item.sku === sku)) {
               items.push({
-                sku: `KOBA-${sku}`,
+                sku: sku,
                 name: name,
                 price: price,
                 commission: commission,
@@ -200,80 +200,97 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
   // Text Normalization for dynamic fuzzy matching
   const cleanText = (val: string) => String(val || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   
+  // Robust SKU Normalizer (strips 'KOBA-', dashes, spaces, converts to pure raw alphanumeric)
+  const normalizeSku = (val: string) => String(val || "").toUpperCase().replace(/^KOBA-/, "").replace(/[^A-Z0-9]/g, "").trim();
+
   // Dynamic parser to extract numeric quantities and scale units (e.g., "50ml", "250 ml", "100 g")
   const parseVolume = (val: string) => {
     const match = val.match(/(\d+)\s*(ml|g|pcs|fl\s*oz|oz)/i);
     return match ? { value: match[1], unit: match[2].toLowerCase() } : null;
   };
 
-  console.log("🔍 Commencing intelligent cross-resolver pipeline...");
+  console.log("🔍 Commencing user-optimized intelligent cross-resolver pipeline...");
+  console.log(`📥 Processing ${scrapedProducts.length} scraped Koba items against ${localInventory.length} local store products.`);
 
-  for (const scraped of scrapedProducts) {
-    const supplierSku = String(scraped.sku || "").trim();
-    const isCurrentlyOut = scraped.isOutOfStock === true;
-    const supplierTitle = scraped.name || "";
-    const supplierVol = parseVolume(supplierTitle);
+  // User Envisioned Approach: Loop through our local products one by one and locate them in the scanned Koba pool!
+  for (const localProd of localInventory) {
+    const cleanLocalName = cleanText(localProd.name);
+    const localSkus = [
+      normalizeSku(localProd.sku),
+      ...(localProd.sizes?.map(s => normalizeSku(s.sku)).filter(Boolean) || [])
+    ].filter(Boolean);
 
-    let matchedLocalProduct = null;
-    let matchedLocalSize = null;
+    let matchedScraped = null;
 
-    // LEVEL 1: Lookup by specific Variant SKU (Custom-mapped SKU on sizes table)
-    for (const p of localInventory) {
-      const specificSize = p.sizes.find(s => s.sku && String(s.sku).trim() === supplierSku);
-      if (specificSize) {
-        matchedLocalProduct = p;
-        matchedLocalSize = specificSize;
-        break;
-      }
-    }
-
-    // LEVEL 2: Lookup by main Product SKU
-    if (!matchedLocalProduct) {
-      matchedLocalProduct = localInventory.find(p => p.sku && String(p.sku).trim() === supplierSku);
-      
-      // If product is a multi-variant parent, we must isolate WHICH size variant corresponds to the scrape result
-      if (matchedLocalProduct && matchedLocalProduct.sizes.length > 1 && supplierVol) {
-        matchedLocalSize = matchedLocalProduct.sizes.find(sz => {
-          const szVol = parseVolume(sz.label);
-          return szVol && szVol.value === supplierVol.value;
-        });
-      }
-    }
-
-    // LEVEL 3: Intelligent Fuzzy Resolution (Safety Fallback for manually merged/deleted records)
-    if (!matchedLocalProduct && supplierVol) {
-      // Generate a clean product base name by removing the matched volume substring
-      const baseProductName = supplierTitle.replace(new RegExp(`${supplierVol.value}\\s*${supplierVol.unit}`, 'i'), "").trim();
-      const cleanSupplierBase = cleanText(baseProductName);
-
-      // Locate candidate product entries whose canonical names overlap
-      const candidateProduct = localInventory.find(p => {
-        const cleanLocalName = cleanText(p.name);
-        return cleanLocalName === cleanSupplierBase || cleanSupplierBase.includes(cleanLocalName) || cleanLocalName.includes(cleanSupplierBase);
+    // A. MATCHING LEVEL 1: Match by Normalized SKU (Matches direct barcodes perfectly!)
+    if (localSkus.length > 0) {
+      matchedScraped = scrapedProducts.find(sc => {
+        const normScraped = normalizeSku(sc.sku);
+        return normScraped && localSkus.includes(normScraped);
       });
-
-      if (candidateProduct) {
-        matchedLocalProduct = candidateProduct;
-        // Bind into exact sizing variant
-        matchedLocalSize = candidateProduct.sizes.find(sz => {
-          const szVol = parseVolume(sz.label);
-          return szVol && szVol.value === supplierVol.value;
-        });
-      }
     }
 
-    // --- STAGE PENDING UPDATES ---
-    if (matchedLocalSize) {
-      // Dynamic child variant override
-      if (matchedLocalSize.isOutOfStock !== isCurrentlyOut) {
-        sizeStatusQueues.push({ id: matchedLocalSize.id, isOutOfStock: isCurrentlyOut });
-        matchedLocalSize.isOutOfStock = isCurrentlyOut; // Mutate memory object reference to track cascading logic
-      }
-    } else if (matchedLocalProduct) {
-      // Root legacy item / single-size parent override
-      if (matchedLocalProduct.isOutOfStock !== isCurrentlyOut) {
-        productStatusQueues.push({ id: matchedLocalProduct.id, isOutOfStock: isCurrentlyOut });
-        matchedLocalProduct.isOutOfStock = isCurrentlyOut; // Mutate memory object
+    // B. MATCHING LEVEL 2: Fuzzy Product Name match fallback (Matches matching titles!)
+    if (!matchedScraped) {
+      matchedScraped = scrapedProducts.find(sc => {
+        const cleanSupplierName = cleanText(sc.name);
+        return cleanLocalName && cleanSupplierName && (
+          cleanLocalName === cleanSupplierName ||
+          cleanSupplierName.includes(cleanLocalName) ||
+          cleanLocalName.includes(cleanSupplierName)
+        );
+      });
+    }
+
+    // C. RECONCILE STATE IF A MATCH IS FOUND
+    if (matchedScraped) {
+      const isCurrentlyOut = matchedScraped.isOutOfStock === true;
+      const supplierVol = parseVolume(matchedScraped.name || "");
+      
+      console.log(`🎯 MATCH DETECTED: "${localProd.name}" <-> "${matchedScraped.name}" | Supplier OutOfStock: ${isCurrentlyOut}`);
+
+      if (localProd.sizes.length > 0) {
+        let subVariantMatched = false;
+
+        for (const sz of localProd.sizes) {
+          let matchesThisVariant = false;
+
+          // Explicit Variant SKU Overlap
+          if (sz.sku && matchedScraped.sku) {
+            matchesThisVariant = normalizeSku(sz.sku) === normalizeSku(matchedScraped.sku);
+          }
+
+          // Volume metric fallback
+          if (!matchesThisVariant && supplierVol) {
+            const szVol = parseVolume(sz.label);
+            if (szVol && szVol.value === supplierVol.value) {
+              matchesThisVariant = true;
+            }
+          }
+
+          if (matchesThisVariant) {
+            if (sz.isOutOfStock !== isCurrentlyOut) {
+              sizeStatusQueues.push({ id: sz.id, isOutOfStock: isCurrentlyOut });
+              sz.isOutOfStock = isCurrentlyOut; // Mutate memory reference to propagate to level 4 parent cascade
+            }
+            subVariantMatched = true;
+          }
+        }
+
+        // Safe single-variant fallback if volume parser wasn't definitive
+        if (!subVariantMatched && localProd.sizes.length === 1) {
+          const targetSz = localProd.sizes[0];
+          if (targetSz.isOutOfStock !== isCurrentlyOut) {
+            sizeStatusQueues.push({ id: targetSz.id, isOutOfStock: isCurrentlyOut });
+            targetSz.isOutOfStock = isCurrentlyOut;
+          }
+        }
+      } else {
+        // Parent single-item root update
+        if (localProd.isOutOfStock !== isCurrentlyOut) {
+          productStatusQueues.push({ id: localProd.id, isOutOfStock: isCurrentlyOut });
+          localProd.isOutOfStock = isCurrentlyOut;
+        }
       }
     }
   }
@@ -418,7 +435,7 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
             const isOutOfStock = /Out\s*of\s*Stock/i.test(text) || /Sold\s*Out/i.test(text);
             
             if (!items.some(x => x.sku === rawSku)) {
-              items.push({ sku: `KOBA-${rawSku}`, isOutOfStock, name: rawTitle });
+              items.push({ sku: rawSku, isOutOfStock, name: rawTitle });
             }
           }
         });
