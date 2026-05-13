@@ -137,7 +137,8 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       howToUse,
       image,
       gallery,
-      sizes,   // Array of { label, price, oldPrice }
+      isOutOfStock, // Added global state
+      sizes,   // Array of { label, price, oldPrice, sku, isOutOfStock }
       reviews, // Array of { author, rating, title, text }
       brandId,
     } = req.body;
@@ -198,11 +199,14 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
         howToUse: howToUse || [],
         image,
         gallery: gallery || [],
+        isOutOfStock: isOutOfStock === true,
         sizes: sizes && Array.isArray(sizes) ? {
           create: sizes.map((s: any) => ({
             label: s.label,
             price: Number(s.price),
             oldPrice: s.oldPrice ? Number(s.oldPrice) : null,
+            sku: s.sku || null,
+            isOutOfStock: s.isOutOfStock === true,
           })),
         } : undefined,
         reviews: reviews && Array.isArray(reviews) ? {
@@ -251,7 +255,8 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       howToUse,
       image,
       gallery,
-      sizes,
+      isOutOfStock, // Added global state
+      sizes,        // Array of { label, price, oldPrice, sku, isOutOfStock }
       reviews,
       brandId,
     } = req.body;
@@ -304,11 +309,14 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
           howToUse,
           image,
           gallery,
+          isOutOfStock: isOutOfStock !== undefined ? (isOutOfStock === true) : undefined,
           sizes: sizes && Array.isArray(sizes) ? {
             create: sizes.map((s: any) => ({
               label: s.label,
               price: Number(s.price),
               oldPrice: s.oldPrice ? Number(s.oldPrice) : null,
+              sku: s.sku || null,
+              isOutOfStock: s.isOutOfStock === true,
             })),
           } : undefined,
           reviews: reviews && Array.isArray(reviews) ? {

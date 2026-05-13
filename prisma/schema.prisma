@@ -62,14 +62,16 @@ model Product {
 }
 
 model ProductSize {
-  id        String   @id @default(uuid())
-  productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  label     String   // e.g., "15 ml" or "30 ml"
-  price     Float
-  oldPrice  Float?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  label        String   // e.g., "15 ml" or "30 ml"
+  price        Float
+  oldPrice     Float?
+  sku          String?  // Direct identifier mapping to external supplier SKU
+  isOutOfStock Boolean  @default(false) // High-precision availability lock for this size only
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Review {

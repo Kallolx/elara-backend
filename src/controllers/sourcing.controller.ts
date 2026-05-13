@@ -189,6 +189,138 @@ export const scrapeKobaProducts = async (req: any, res: any, next: any) => {
   }
 };
 
+// Reusable core business engine for intelligent stock synchronization across sizes and products
+const executeIntelligentSync = async (scrapedProducts: any[]) => {
+  // 1. Gather all local inventory items for in-memory high-performance cross-analysis
+  const localInventory = await prisma.product.findMany({
+    include: { sizes: true }
+  });
+
+  const productStatusQueues: { id: string; isOutOfStock: boolean }[] = [];
+  const sizeStatusQueues: { id: string; isOutOfStock: boolean }[] = [];
+
+  // Text Normalization for dynamic fuzzy matching
+  const cleanText = (val: string) => String(val || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  
+  // Dynamic parser to extract numeric quantities and scale units (e.g., "50ml", "250 ml", "100 g")
+  const parseVolume = (val: string) => {
+    const match = val.match(/(\d+)\s*(ml|g|pcs|fl\s*oz|oz)/i);
+    return match ? { value: match[1], unit: match[2].toLowerCase() } : null;
+  };
+
+  console.log("🔍 Commencing intelligent cross-resolver pipeline...");
+
+  for (const scraped of scrapedProducts) {
+    const supplierSku = String(scraped.sku || "").trim();
+    const isCurrentlyOut = scraped.isOutOfStock === true;
+    const supplierTitle = scraped.name || "";
+    const supplierVol = parseVolume(supplierTitle);
+
+    let matchedLocalProduct = null;
+    let matchedLocalSize = null;
+
+    // LEVEL 1: Lookup by specific Variant SKU (Custom-mapped SKU on sizes table)
+    for (const p of localInventory) {
+      const specificSize = p.sizes.find(s => s.sku && String(s.sku).trim() === supplierSku);
+      if (specificSize) {
+        matchedLocalProduct = p;
+        matchedLocalSize = specificSize;
+        break;
+      }
+    }
+
+    // LEVEL 2: Lookup by main Product SKU
+    if (!matchedLocalProduct) {
+      matchedLocalProduct = localInventory.find(p => p.sku && String(p.sku).trim() === supplierSku);
+      
+      // If product is a multi-variant parent, we must isolate WHICH size variant corresponds to the scrape result
+      if (matchedLocalProduct && matchedLocalProduct.sizes.length > 1 && supplierVol) {
+        matchedLocalSize = matchedLocalProduct.sizes.find(sz => {
+          const szVol = parseVolume(sz.label);
+          return szVol && szVol.value === supplierVol.value;
+        });
+      }
+    }
+
+    // LEVEL 3: Intelligent Fuzzy Resolution (Safety Fallback for manually merged/deleted records)
+    if (!matchedLocalProduct && supplierVol) {
+      // Generate a clean product base name by removing the matched volume substring
+      const baseProductName = supplierTitle.replace(new RegExp(`${supplierVol.value}\\s*${supplierVol.unit}`, 'i'), "").trim();
+      const cleanSupplierBase = cleanText(baseProductName);
+
+      // Locate candidate product entries whose canonical names overlap
+      const candidateProduct = localInventory.find(p => {
+        const cleanLocalName = cleanText(p.name);
+        return cleanLocalName === cleanSupplierBase || cleanSupplierBase.includes(cleanLocalName) || cleanLocalName.includes(cleanSupplierBase);
+      });
+
+      if (candidateProduct) {
+        matchedLocalProduct = candidateProduct;
+        // Bind into exact sizing variant
+        matchedLocalSize = candidateProduct.sizes.find(sz => {
+          const szVol = parseVolume(sz.label);
+          return szVol && szVol.value === supplierVol.value;
+        });
+      }
+    }
+
+    // --- STAGE PENDING UPDATES ---
+    if (matchedLocalSize) {
+      // Dynamic child variant override
+      if (matchedLocalSize.isOutOfStock !== isCurrentlyOut) {
+        sizeStatusQueues.push({ id: matchedLocalSize.id, isOutOfStock: isCurrentlyOut });
+        matchedLocalSize.isOutOfStock = isCurrentlyOut; // Mutate memory object reference to track cascading logic
+      }
+    } else if (matchedLocalProduct) {
+      // Root legacy item / single-size parent override
+      if (matchedLocalProduct.isOutOfStock !== isCurrentlyOut) {
+        productStatusQueues.push({ id: matchedLocalProduct.id, isOutOfStock: isCurrentlyOut });
+        matchedLocalProduct.isOutOfStock = isCurrentlyOut; // Mutate memory object
+      }
+    }
+  }
+
+  // LEVEL 4: CASCADING ARCHITECTURAL OVERRIDES (Reconcile child inventories to parents)
+  for (const p of localInventory) {
+    if (p.sizes.length > 0) {
+      // Rule: Parent is out of stock ONLY if EVERY SINGLE child variant is out of stock.
+      // Rule: If even 1 variant remains in-stock, parent remains available.
+      const allSizesSoldOut = p.sizes.every(sz => sz.isOutOfStock === true);
+      
+      if (p.isOutOfStock !== allSizesSoldOut) {
+        const existingQueueIdx = productStatusQueues.findIndex(q => q.id === p.id);
+        if (existingQueueIdx !== -1) {
+          productStatusQueues[existingQueueIdx].isOutOfStock = allSizesSoldOut;
+        } else {
+          productStatusQueues.push({ id: p.id, isOutOfStock: allSizesSoldOut });
+        }
+      }
+    }
+  }
+
+  // Level 5: Assemble & Flush Transaction stack to Postgres
+  const operationStack = [];
+  for (const szUpdate of sizeStatusQueues) {
+    operationStack.push(prisma.productSize.update({ 
+      where: { id: szUpdate.id }, 
+      data: { isOutOfStock: szUpdate.isOutOfStock } 
+    }));
+  }
+  for (const prodUpdate of productStatusQueues) {
+    operationStack.push(prisma.product.update({ 
+      where: { id: prodUpdate.id }, 
+      data: { isOutOfStock: prodUpdate.isOutOfStock } 
+    }));
+  }
+
+  if (operationStack.length > 0) {
+    await prisma.$transaction(operationStack);
+  }
+
+  console.log(`⚡ Intelligent solver flushed ${operationStack.length} SQL updates!`);
+  return operationStack.length;
+};
+
 // Bulk Sync Inventory State using Latest Scrape Result
 export const syncInventory = async (req: any, res: any, next: any) => {
   try {
@@ -198,45 +330,13 @@ export const syncInventory = async (req: any, res: any, next: any) => {
       return res.status(400).json({ success: false, message: "Invalid scraped products list provided." });
     }
 
-    let updateCount = 0;
-    
-    // Construct a mapping of scraped SKUs to their Out of Stock boolean
-    const scrapeMap = new Map();
-    scrapedProducts.forEach((p: any) => {
-      scrapeMap.set(p.sku, p.isOutOfStock === true);
-    });
-
-    // Fetch all products currently in our local database that match ANY of the scraped SKUs
-    const localProducts = await prisma.product.findMany({
-      where: {
-        sku: {
-          in: Array.from(scrapeMap.keys())
-        }
-      },
-      select: { id: true, sku: true, isOutOfStock: true }
-    });
-
-    // Perform batch update transactions for mismatched states
-    const updates = localProducts
-      .filter(p => scrapeMap.get(p.sku) !== p.isOutOfStock)
-      .map(p => 
-        prisma.product.update({
-          where: { id: p.id },
-          data: { isOutOfStock: scrapeMap.get(p.sku) }
-        })
-      );
-
-    if (updates.length > 0) {
-      await prisma.$transaction(updates);
-      updateCount = updates.length;
-    }
-
-    console.log(`🔄 Synced inventory for ${updateCount} products based on latest scrape.`);
+    // Execute the Intelligent cross-resolver engine
+    const count = await executeIntelligentSync(scrapedProducts);
 
     res.status(200).json({
       success: true,
-      message: `Successfully synchronized inventory. Updated status of ${updateCount} products!`,
-      updatedCount: updateCount
+      message: `Successfully synchronized inventory via intelligent resolver. Processed ${count} inventory adjustments!`,
+      updatedCount: count
     });
 
   } catch (error: any) {
@@ -317,10 +417,12 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
             if (!skuMatch) return;
             const rawSku = skuMatch[1];
             
+            // Extract the name payload for fuzzy support
+            const rawTitle = parent.textContent.split("SKU:")[0].trim();
             const isOutOfStock = /Out\s*of\s*Stock/i.test(text) || /Sold\s*Out/i.test(text);
             
             if (!items.some(x => x.sku === rawSku)) {
-              items.push({ sku: `KOBA-${rawSku}`, isOutOfStock });
+              items.push({ sku: `KOBA-${rawSku}`, isOutOfStock, name: rawTitle });
             }
           }
         });
@@ -340,42 +442,18 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
     await browser.close();
     console.log(`🏁 Scan Complete! Total parsed unique items: ${allFoundProducts.length}`);
 
-    // 3. Database Bulk Processing
+    // 3. Intelligent Database Processing
     if (allFoundProducts.length === 0) {
       return res.status(200).json({ success: false, message: "Scraper finished but no products were parsed from supplier dashboard." });
     }
 
-    // Deduplicate by SKU to be safe
-    const scrapeMap = new Map();
-    allFoundProducts.forEach(p => scrapeMap.set(p.sku, p.isOutOfStock));
-
-    // Fetch all currently local products in Elara DB that match any from the scrape list
-    const localMatches = await prisma.product.findMany({
-      where: { sku: { in: Array.from(scrapeMap.keys()) } },
-      select: { id: true, sku: true, isOutOfStock: true }
-    });
-
-    // Filter to ones that actually differ from current database state to optimize writes
-    const updates = localMatches
-      .filter(p => scrapeMap.get(p.sku) !== p.isOutOfStock)
-      .map(p => 
-        prisma.product.update({
-          where: { id: p.id },
-          data: { isOutOfStock: scrapeMap.get(p.sku) }
-        })
-      );
-
-    let updatedCount = 0;
-    if (updates.length > 0) {
-      await prisma.$transaction(updates);
-      updatedCount = updates.length;
-    }
+    const count = await executeIntelligentSync(allFoundProducts);
 
     res.status(200).json({
       success: true,
-      message: `System synchronized successfully! Processed ${allFoundProducts.length} supplier items, identified ${localMatches.length} matches, and updated ${updatedCount} localized states.`,
+      message: `System synchronized successfully! Processed ${allFoundProducts.length} supplier items and updated ${count} localized record fields.`,
       totalScanned: allFoundProducts.length,
-      updatedCount: updatedCount
+      updatedCount: count
     });
 
   } catch (error: any) {
