@@ -487,30 +487,57 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
         await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15000 });
         await page.close();
         
-        activeSyncTask.status = "scanning";
-        activeSyncTask.progressMsg = "✅ Login Successful. Launching concurrent multi-page deep scan...";
+        activeSyncTask.status = "initializing";
+        activeSyncTask.progressMsg = "🔍 Analysing local database for active SKUs to sync...";
         activeSyncTask.updatedAt = Date.now();
 
-        // 2. High-Performance Concurrent Deep Crawl Loop (Supports Dynamic Deep Scanning)
-        let allFoundProducts: any[] = [];
-        const MAX_PAGES = 100; 
+        // Extract all active SKU targets registered across parent products and sub-variants
+        const localProducts = await prisma.product.findMany({
+          where: { sku: { not: null } },
+          select: { sku: true }
+        });
+        const localSizes = await prisma.productSize.findMany({
+          where: { sku: { not: null } },
+          select: { sku: true }
+        });
 
-        // High-speed dynamic concurrency parser
-        const scrapePageConcurrently = async (pageNum: number) => {
+        // Sanitize, pool, and deduplicate target SKUs (e.g. KOBA-8806182572951 -> 8806182572951)
+        const rawSkus = [
+          ...localProducts.map(p => p.sku),
+          ...localSizes.map(s => s.sku)
+        ].filter(Boolean) as string[];
+
+        const targetSkus = Array.from(new Set(
+          rawSkus.map(s => s.toUpperCase().replace("KOBA-", "").trim())
+        )).filter(s => s.length > 2);
+
+        console.log(`🎯 Targeted Sync Engine loaded ${targetSkus.length} unique SKU barcodes from Local DB.`);
+        if (targetSkus.length === 0) {
+          throw new Error("System found zero active KOBA-SKUs registered in your database!");
+        }
+
+        activeSyncTask.status = "scanning";
+        activeSyncTask.progressMsg = `✅ Ready. Launching targeted search queries for ${targetSkus.length} SKUs...`;
+        activeSyncTask.updatedAt = Date.now();
+
+        let allFoundProducts: any[] = [];
+
+        // High-speed targeted SKU search parser
+        const scrapeTargetSkuConcurrently = async (cleanSku: string) => {
           const tab = await browser.newPage();
           try {
             await tab.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
             await tab.setViewport({ width: 1440, height: 900 });
             
-            // Request with per_page=50 in case Koba API accepts higher payload boundaries
-            await tab.goto(`https://www.kobareseller.com/dashboard/products?per_page=50&page=${pageNum}`, { 
+            // Direct Target Search Navigation!
+            await tab.goto(`https://www.kobareseller.com/dashboard/products?product=${cleanSku}`, { 
               waitUntil: "domcontentloaded", 
               timeout: 20000 
             });
 
-            // Wait for selector to mount and inject a dynamic stabilizer micro-delay
+            // Fast dynamic stabilizer delay
             await tab.waitForSelector("img", { timeout: 5000 }).catch(() => {});
-            await new Promise(resolve => setTimeout(resolve, 400));
+            await new Promise(resolve => setTimeout(resolve, 300));
 
             const items = await tab.evaluate(() => {
               const results: any[] = [];
@@ -546,43 +573,32 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
 
             return items;
           } catch (err: any) {
-            console.error(`   ❌ Error loading page ${pageNum}:`, err.message);
+            console.error(`   ❌ Target Search [${cleanSku}] timed out or failed:`, err.message);
             return [];
           } finally {
             await tab.close();
           }
         };
 
-        // Execute in parallel batches of 4 (lightweight on VPS RAM, but incredibly fast!)
-        const BATCH_SIZE = 4;
-        for (let i = 1; i <= MAX_PAGES; i += BATCH_SIZE) {
-          const currentEndPage = Math.min(i + BATCH_SIZE - 1, MAX_PAGES);
-          activeSyncTask.progressMsg = `🚀 Crawling catalog pages ${i} to ${currentEndPage}... (${allFoundProducts.length} items scraped)`;
+        // Execute targeted SKU search queue in parallel batches of 5 (extreme speed + lightweight RAM)
+        const BATCH_SIZE = 5;
+        for (let i = 0; i < targetSkus.length; i += BATCH_SIZE) {
+          const currentBatch = targetSkus.slice(i, i + BATCH_SIZE);
+          const currentEnd = Math.min(i + BATCH_SIZE, targetSkus.length);
+          
+          activeSyncTask.progressMsg = `🚀 Searching SKUs ${i + 1} to ${currentEnd} of ${targetSkus.length}... (${allFoundProducts.length} items located)`;
           activeSyncTask.updatedAt = Date.now();
 
-          const batchPromises = [];
-          for (let j = 0; j < BATCH_SIZE && (i + j) <= MAX_PAGES; j++) {
-            batchPromises.push(scrapePageConcurrently(i + j));
-          }
-          
+          const batchPromises = currentBatch.map(sku => scrapeTargetSkuConcurrently(sku));
           const batchResults = await Promise.all(batchPromises);
           
-          // Add to master array and sum items to detect catalog boundaries
-          let itemsInBatch = 0;
           for (const results of batchResults) {
-            itemsInBatch += results.length;
             allFoundProducts.push(...results);
-          }
-
-          // Early Escape: If an entire batch (3 pages) contains 0 items, we have hit the end of the supplier's inventory. Stop crawl!
-          if (itemsInBatch === 0) {
-            console.log("📭 Empty parallel batch detected. Supplier catalog exhausted. Terminating scan early!");
-            break;
           }
         }
 
         await browser.close();
-        console.log(`🏁 High-Speed Scan Complete! Total parsed unique items: ${allFoundProducts.length}`);
+        console.log(`🏁 Targeted Precision Scan Complete! Scanned and retrieved ${allFoundProducts.length} verified products.`);
 
         // 3. Intelligent Database Processing
         if (allFoundProducts.length === 0) {
