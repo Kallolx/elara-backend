@@ -104,9 +104,25 @@ export const deleteDeliveryZone = async (req: Request, res: Response, next: Next
 // 🌱 Hydrate database with pre-harvested 65 districts from local storage
 export const seedDeliveryZonesFromJson = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const jsonPath = path.join(__dirname, "..", "delivery-locations-seed.json");
+    // Resilient path resolving: compiled node distributions running from dist/ do not copy JSON files by default.
+    // We cascade search local directories and project root (process.cwd) to guarantee asset recovery!
+    let jsonPath = path.join(__dirname, "..", "delivery-locations-seed.json");
+
     if (!fs.existsSync(jsonPath)) {
-      return res.status(404).json({ success: false, message: "Static geographical seed data asset missing from source." });
+      // Fallback A: Inspect standard src/ relative to server project root (Works 100% on client VPS)
+      jsonPath = path.join(process.cwd(), "src", "delivery-locations-seed.json");
+    }
+
+    if (!fs.existsSync(jsonPath)) {
+      // Fallback B: Inspect standard root root 
+      jsonPath = path.join(process.cwd(), "delivery-locations-seed.json");
+    }
+
+    if (!fs.existsSync(jsonPath)) {
+      return res.status(404).json({ 
+        success: false, 
+        message: `Ingestion failure: Static geographical asset missing from running process. Checked: ${path.join(process.cwd(), "src", "delivery-locations-seed.json")}` 
+      });
     }
 
     const rawData = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
