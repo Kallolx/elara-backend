@@ -493,7 +493,7 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
 
         // Extract all active SKU targets registered across parent products and sub-variants
         const localProducts = await prisma.product.findMany({
-          where: { sku: { not: null } },
+          where: { sku: { not: "" } },
           select: { sku: true }
         });
         const localSizes = await prisma.productSize.findMany({
