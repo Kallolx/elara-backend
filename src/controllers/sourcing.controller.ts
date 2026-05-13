@@ -209,6 +209,7 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
     wasUpdated: boolean;
     categoryName: string;
     brandName: string;
+    image: string | null;
   }[] = [];
 
   // Text Normalization for dynamic fuzzy matching
@@ -326,7 +327,8 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
       outOfStock: localProd.isOutOfStock,
       wasUpdated: hasChanged,
       categoryName: localProd.category?.name || "N/A",
-      brandName: localProd.brand?.name || "N/A"
+      brandName: localProd.brand?.name || "N/A",
+      image: localProd.image || null
     });
   }
 
