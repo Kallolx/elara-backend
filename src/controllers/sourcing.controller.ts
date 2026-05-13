@@ -3,14 +3,12 @@ import puppeteer from "puppeteer";
 
 // Live Puppeteer Koba Reseller Dashboard Scraper
 export const scrapeKobaProducts = async (req: any, res: any, next: any) => {
+  req.setTimeout(600000); // Extend connection timeout tolerance to 10 minutes for scraping
   let browser;
   try {
     console.log("🚀 Launching Puppeteer for live reseller scraping...");
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: process.platform === "win32" 
-        ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" 
-        : undefined,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
 
@@ -347,14 +345,12 @@ export const syncInventory = async (req: any, res: any, next: any) => {
 
 // Full-Automated Background Direct Sync: Scraping multiple pages sequentially and updating DB internally.
 export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
+  req.setTimeout(600000); // Extend connection timeout tolerance to 10 minutes for full crawls
   let browser;
   try {
     console.log("🚀 Initiating Full Background Automated Stock Sync...");
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: process.platform === "win32" 
-        ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" 
-        : undefined,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
 
