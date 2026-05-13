@@ -260,36 +260,55 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
         for (const sz of localProd.sizes) {
           let matchesThisVariant = false;
 
-          // Explicit Variant SKU Overlap
+          // 1. Explicit Variant SKU Overlap
           if (sz.sku && matchedScraped.sku) {
             matchesThisVariant = normalizeSku(sz.sku) === normalizeSku(matchedScraped.sku);
+            if (matchesThisVariant) console.log(`   🧩 Variant [${sz.label}] linked via exact SKU match.`);
           }
 
-          // Volume metric fallback
-          if (!matchesThisVariant && supplierVol) {
-            const szVol = parseVolume(sz.label);
-            if (szVol && szVol.value === supplierVol.value) {
+          // 2. Volume Metric Parser Overlap
+          const szVol = parseVolume(sz.label);
+          if (!matchesThisVariant && supplierVol && szVol) {
+            matchesThisVariant = (szVol.value === supplierVol.value);
+            if (matchesThisVariant) console.log(`   ⚖️ Variant [${sz.label}] linked via parsed volumes (${szVol.value} === ${supplierVol.value}).`);
+          }
+
+          // 3. Smart Containment Fallback: Label inclusion inside Supplier's Title
+          if (!matchesThisVariant && sz.label && matchedScraped.name) {
+            const cleanLabel = cleanText(sz.label);
+            const cleanSuppTitle = cleanText(matchedScraped.name);
+            if (cleanLabel && cleanSuppTitle.includes(cleanLabel)) {
               matchesThisVariant = true;
+              console.log(`   📝 Variant [${sz.label}] linked via title inclusion ("${cleanLabel}" found in scraped name).`);
             }
           }
 
           if (matchesThisVariant) {
             if (sz.isOutOfStock !== isCurrentlyOut) {
               sizeStatusQueues.push({ id: sz.id, isOutOfStock: isCurrentlyOut });
-              sz.isOutOfStock = isCurrentlyOut; // Mutate memory reference to propagate to level 4 parent cascade
+              sz.isOutOfStock = isCurrentlyOut; // Propagate reference change
               hasChanged = true;
+              console.log(`   🔥 REAL-TIME TOGGLE: Variant [${sz.label}] database value updated to: ${isCurrentlyOut ? 'SOLD OUT' : 'IN STOCK'}`);
+            } else {
+              console.log(`   ✅ Variant [${sz.label}] database matches supplier. No SQL update needed.`);
             }
             subVariantMatched = true;
+          } else {
+            console.log(`   ⚠️ Skipped Variant [${sz.label}]: Reconciler found no SKU match, volume match, or title label match.`);
           }
         }
 
-        // Safe single-variant fallback if volume parser wasn't definitive
+        // 4. Safe Single-Variant Full Fallback: If product ONLY has 1 size, sync absolutely
         if (!subVariantMatched && localProd.sizes.length === 1) {
           const targetSz = localProd.sizes[0];
+          console.log(`   💫 Single-variant fallback invoked for [${targetSz.label}] due to single product mapping.`);
           if (targetSz.isOutOfStock !== isCurrentlyOut) {
             sizeStatusQueues.push({ id: targetSz.id, isOutOfStock: isCurrentlyOut });
             targetSz.isOutOfStock = isCurrentlyOut;
             hasChanged = true;
+            console.log(`   🔥 REAL-TIME TOGGLE (Fallback): Variant [${targetSz.label}] database updated to: ${isCurrentlyOut ? 'SOLD OUT' : 'IN STOCK'}`);
+          } else {
+            console.log(`   ✅ Variant [${targetSz.label}] (Fallback) is already matching supplier.`);
           }
         }
       } else {
