@@ -213,7 +213,7 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
   console.log("🔍 Commencing user-optimized intelligent cross-resolver pipeline...");
   console.log(`📥 Processing ${scrapedProducts.length} scraped Koba items against ${localInventory.length} local store products.`);
 
-  // User Envisioned Approach: Loop through our local products one by one and locate them in the scanned Koba pool!
+  // Refactored Resolver Loop: Correctly handles multi-variant products having multiple distinct listings in scraped pool!
   for (const localProd of localInventory) {
     const cleanLocalName = cleanText(localProd.name);
     const localSkus = [
@@ -221,113 +221,97 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
       ...(localProd.sizes?.map(s => normalizeSku(s.sku)).filter(Boolean) || [])
     ].filter(Boolean);
 
-    let matchedScraped = null;
+    // 1. Collect ALL scraped items that correspond to this local product (via shared SKUs or shared fuzzy name)
+    const relevantScraped = scrapedProducts.filter(sc => {
+      const normScraped = normalizeSku(sc.sku);
+      if (normScraped && localSkus.includes(normScraped)) return true;
 
-    // A. MATCHING LEVEL 1: Match by Normalized SKU (Matches direct barcodes perfectly!)
-    if (localSkus.length > 0) {
-      matchedScraped = scrapedProducts.find(sc => {
-        const normScraped = normalizeSku(sc.sku);
-        return normScraped && localSkus.includes(normScraped);
-      });
-    }
+      const cleanSupplierName = cleanText(sc.name);
+      return cleanLocalName && cleanSupplierName && (
+        cleanLocalName === cleanSupplierName ||
+        cleanSupplierName.includes(cleanLocalName) ||
+        cleanLocalName.includes(cleanSupplierName)
+      );
+    });
 
-    // B. MATCHING LEVEL 2: Fuzzy Product Name match fallback (Matches matching titles!)
-    if (!matchedScraped) {
-      matchedScraped = scrapedProducts.find(sc => {
-        const cleanSupplierName = cleanText(sc.name);
-        return cleanLocalName && cleanSupplierName && (
-          cleanLocalName === cleanSupplierName ||
-          cleanSupplierName.includes(cleanLocalName) ||
-          cleanLocalName.includes(cleanSupplierName)
-        );
-      });
-    }
+    if (relevantScraped.length === 0) continue;
 
-    // C. RECONCILE STATE IF A MATCH IS FOUND
-    if (matchedScraped) {
-      const isCurrentlyOut = matchedScraped.isOutOfStock === true;
-      const supplierVol = parseVolume(matchedScraped.name || "");
-      
-      // Check matching method for analytics
-      const isSkuMatch = localSkus.length > 0 && normalizeSku(matchedScraped.sku) && localSkus.includes(normalizeSku(matchedScraped.sku));
-      let hasChanged = false;
+    console.log(`🎯 EVALUATING PRODUCT: "${localProd.name}" (${relevantScraped.length} scraped candidates parsed)`);
+    let hasChanged = false;
+    let topLevelMatchedScraped = relevantScraped[0];
 
-      console.log(`🎯 MATCH DETECTED: "${localProd.name}" <-> "${matchedScraped.name}" | Supplier OutOfStock: ${isCurrentlyOut}`);
+    if (localProd.sizes.length > 0) {
+      // This product has variants. Perform precision matching for EACH variant separately!
+      for (const sz of localProd.sizes) {
+        const szSku = normalizeSku(sz.sku);
+        const szVol = parseVolume(sz.label);
+        const cleanLabel = cleanText(sz.label);
 
-      if (localProd.sizes.length > 0) {
-        let subVariantMatched = false;
+        // Locate the absolute best candidate in our pool for THIS specific sub-variant
+        let bestScraped = relevantScraped.find(sc => {
+          const scSku = normalizeSku(sc.sku);
+          // A. Direct exact SKU match (highest precedence)
+          if (szSku && scSku && szSku === scSku) return true;
 
-        for (const sz of localProd.sizes) {
-          let matchesThisVariant = false;
+          // B. Volume Metric overlap match (e.g. 100 == 100)
+          const scVol = parseVolume(sc.name || "");
+          if (szVol && scVol && szVol.value === scVol.value) return true;
 
-          // 1. Explicit Variant SKU Overlap
-          if (sz.sku && matchedScraped.sku) {
-            matchesThisVariant = normalizeSku(sz.sku) === normalizeSku(matchedScraped.sku);
-            if (matchesThisVariant) console.log(`   🧩 Variant [${sz.label}] linked via exact SKU match.`);
-          }
+          // C. Containment Fallback (does text '100g' exist in supplier's title)
+          if (cleanLabel && cleanText(sc.name).includes(cleanLabel)) return true;
 
-          // 2. Volume Metric Parser Overlap
-          const szVol = parseVolume(sz.label);
-          if (!matchesThisVariant && supplierVol && szVol) {
-            matchesThisVariant = (szVol.value === supplierVol.value);
-            if (matchesThisVariant) console.log(`   ⚖️ Variant [${sz.label}] linked via parsed volumes (${szVol.value} === ${supplierVol.value}).`);
-          }
+          return false;
+        });
 
-          // 3. Smart Containment Fallback: Label inclusion inside Supplier's Title
-          if (!matchesThisVariant && sz.label && matchedScraped.name) {
-            const cleanLabel = cleanText(sz.label);
-            const cleanSuppTitle = cleanText(matchedScraped.name);
-            if (cleanLabel && cleanSuppTitle.includes(cleanLabel)) {
-              matchesThisVariant = true;
-              console.log(`   📝 Variant [${sz.label}] linked via title inclusion ("${cleanLabel}" found in scraped name).`);
-            }
-          }
-
-          if (matchesThisVariant) {
-            if (sz.isOutOfStock !== isCurrentlyOut) {
-              sizeStatusQueues.push({ id: sz.id, isOutOfStock: isCurrentlyOut });
-              sz.isOutOfStock = isCurrentlyOut; // Propagate reference change
-              hasChanged = true;
-              console.log(`   🔥 REAL-TIME TOGGLE: Variant [${sz.label}] database value updated to: ${isCurrentlyOut ? 'SOLD OUT' : 'IN STOCK'}`);
-            } else {
-              console.log(`   ✅ Variant [${sz.label}] database matches supplier. No SQL update needed.`);
-            }
-            subVariantMatched = true;
-          } else {
-            console.log(`   ⚠️ Skipped Variant [${sz.label}]: Reconciler found no SKU match, volume match, or title label match.`);
-          }
+        // Single-variant emergency fallback
+        if (!bestScraped && localProd.sizes.length === 1) {
+          bestScraped = relevantScraped[0];
         }
 
-        // 4. Safe Single-Variant Full Fallback: If product ONLY has 1 size, sync absolutely
-        if (!subVariantMatched && localProd.sizes.length === 1) {
-          const targetSz = localProd.sizes[0];
-          console.log(`   💫 Single-variant fallback invoked for [${targetSz.label}] due to single product mapping.`);
-          if (targetSz.isOutOfStock !== isCurrentlyOut) {
-            sizeStatusQueues.push({ id: targetSz.id, isOutOfStock: isCurrentlyOut });
-            targetSz.isOutOfStock = isCurrentlyOut;
+        if (bestScraped) {
+          topLevelMatchedScraped = bestScraped;
+          const isCurrentlyOut = bestScraped.isOutOfStock === true;
+          
+          // Determine debug label for logs
+          let linkageType = "📝 Containment";
+          if (szSku && normalizeSku(bestScraped.sku) === szSku) linkageType = "🧩 SKU Match";
+          else if (szVol && parseVolume(bestScraped.name || "")?.value === szVol.value) linkageType = "⚖️ Volume Match";
+
+          console.log(`    -> Sub-variant [${sz.label}] matched "${bestScraped.name}" via ${linkageType}. Supplier Out: ${isCurrentlyOut}`);
+
+          if (sz.isOutOfStock !== isCurrentlyOut) {
+            sizeStatusQueues.push({ id: sz.id, isOutOfStock: isCurrentlyOut });
+            sz.isOutOfStock = isCurrentlyOut;
             hasChanged = true;
-            console.log(`   🔥 REAL-TIME TOGGLE (Fallback): Variant [${targetSz.label}] database updated to: ${isCurrentlyOut ? 'SOLD OUT' : 'IN STOCK'}`);
+            console.log(`       🔥 REAL-TIME TOGGLE: Variant [${sz.label}] database value updated to: ${isCurrentlyOut ? 'SOLD OUT' : 'IN STOCK'}`);
           } else {
-            console.log(`   ✅ Variant [${targetSz.label}] (Fallback) is already matching supplier.`);
+            console.log(`       ✅ Variant [${sz.label}] database matches supplier. No update required.`);
           }
-        }
-      } else {
-        // Parent single-item root update
-        if (localProd.isOutOfStock !== isCurrentlyOut) {
-          productStatusQueues.push({ id: localProd.id, isOutOfStock: isCurrentlyOut });
-          localProd.isOutOfStock = isCurrentlyOut;
-          hasChanged = true;
+        } else {
+          console.log(`    ⚠️ Variant [${sz.label}] skipped: No precise scraped candidate located.`);
         }
       }
-
-      processedMatches.push({
-        name: localProd.name,
-        sku: localProd.sku || matchedScraped.sku || "N/A",
-        method: isSkuMatch ? "Direct SKU" : "Fuzzy Name",
-        outOfStock: isCurrentlyOut,
-        wasUpdated: hasChanged
-      });
+    } else {
+      // Single root item (no variants). Match directly.
+      const isCurrentlyOut = topLevelMatchedScraped.isOutOfStock === true;
+      console.log(`    -> Root Product matched "${topLevelMatchedScraped.name}". Supplier Out: ${isCurrentlyOut}`);
+      if (localProd.isOutOfStock !== isCurrentlyOut) {
+        productStatusQueues.push({ id: localProd.id, isOutOfStock: isCurrentlyOut });
+        localProd.isOutOfStock = isCurrentlyOut;
+        hasChanged = true;
+        console.log(`       🔥 REAL-TIME TOGGLE: Root Product stock updated to: ${isCurrentlyOut ? 'SOLD OUT' : 'IN STOCK'}`);
+      } else {
+        console.log(`       ✅ Root Product stock matches supplier.`);
+      }
     }
+
+    processedMatches.push({
+      name: localProd.name,
+      sku: localProd.sku || topLevelMatchedScraped.sku || "N/A",
+      method: (localSkus.includes(normalizeSku(topLevelMatchedScraped.sku))) ? "Direct SKU" : "Fuzzy Name",
+      outOfStock: localProd.isOutOfStock,
+      wasUpdated: hasChanged
+    });
   }
 
   // LEVEL 4: CASCADING ARCHITECTURAL OVERRIDES (Reconcile child inventories to parents)
