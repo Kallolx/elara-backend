@@ -437,9 +437,9 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
     await page.close(); // Close original login page context to preserve RAM
     console.log("✅ Login Successful. Launching Concurrent Multi-page Scan...");
 
-    // 2. High-Performance Concurrent Deep Crawl Loop (Max 15 pages)
+    // 2. High-Performance Concurrent Deep Crawl Loop (Supports Dynamic Deep Scanning)
     let allFoundProducts: any[] = [];
-    const MAX_PAGES = 15;
+    const MAX_PAGES = 60; // Dynamically scan up to 60 pages (600 items) for absolute catalog coverage!
 
     // High-speed dynamic concurrency parser
     const scrapePageConcurrently = async (pageNum: number) => {
@@ -449,7 +449,8 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
         await tab.setViewport({ width: 1440, height: 900 });
         
         console.log(`🚀 Scanning page ${pageNum}...`);
-        await tab.goto(`https://www.kobareseller.com/dashboard/products?page=${pageNum}`, { 
+        // Request with per_page=50 in case Koba API accepts higher payload boundaries
+        await tab.goto(`https://www.kobareseller.com/dashboard/products?per_page=50&page=${pageNum}`, { 
           waitUntil: "domcontentloaded", 
           timeout: 20000 
         });
@@ -507,8 +508,21 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
       for (let j = 0; j < BATCH_SIZE && (i + j) <= MAX_PAGES; j++) {
         batchPromises.push(scrapePageConcurrently(i + j));
       }
+      
       const batchResults = await Promise.all(batchPromises);
-      allFoundProducts.push(...batchResults.flat());
+      
+      // Add to master array and sum items to detect catalog boundaries
+      let itemsInBatch = 0;
+      for (const results of batchResults) {
+        itemsInBatch += results.length;
+        allFoundProducts.push(...results);
+      }
+
+      // Early Escape: If an entire batch (3 pages) contains 0 items, we have hit the end of the supplier's inventory. Stop crawl!
+      if (itemsInBatch === 0) {
+        console.log("📭 Empty parallel batch detected. Supplier catalog exhausted. Terminating scan early!");
+        break;
+      }
     }
 
     await browser.close();
