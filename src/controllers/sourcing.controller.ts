@@ -196,6 +196,7 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
 
   const productStatusQueues: { id: string; isOutOfStock: boolean }[] = [];
   const sizeStatusQueues: { id: string; isOutOfStock: boolean }[] = [];
+  const processedMatches: { name: string; sku: string; method: string; outOfStock: boolean; wasUpdated: boolean }[] = [];
 
   // Text Normalization for dynamic fuzzy matching
   const cleanText = (val: string) => String(val || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -247,6 +248,10 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
       const isCurrentlyOut = matchedScraped.isOutOfStock === true;
       const supplierVol = parseVolume(matchedScraped.name || "");
       
+      // Check matching method for analytics
+      const isSkuMatch = localSkus.length > 0 && normalizeSku(matchedScraped.sku) && localSkus.includes(normalizeSku(matchedScraped.sku));
+      let hasChanged = false;
+
       console.log(`🎯 MATCH DETECTED: "${localProd.name}" <-> "${matchedScraped.name}" | Supplier OutOfStock: ${isCurrentlyOut}`);
 
       if (localProd.sizes.length > 0) {
@@ -272,6 +277,7 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
             if (sz.isOutOfStock !== isCurrentlyOut) {
               sizeStatusQueues.push({ id: sz.id, isOutOfStock: isCurrentlyOut });
               sz.isOutOfStock = isCurrentlyOut; // Mutate memory reference to propagate to level 4 parent cascade
+              hasChanged = true;
             }
             subVariantMatched = true;
           }
@@ -283,6 +289,7 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
           if (targetSz.isOutOfStock !== isCurrentlyOut) {
             sizeStatusQueues.push({ id: targetSz.id, isOutOfStock: isCurrentlyOut });
             targetSz.isOutOfStock = isCurrentlyOut;
+            hasChanged = true;
           }
         }
       } else {
@@ -290,8 +297,17 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
         if (localProd.isOutOfStock !== isCurrentlyOut) {
           productStatusQueues.push({ id: localProd.id, isOutOfStock: isCurrentlyOut });
           localProd.isOutOfStock = isCurrentlyOut;
+          hasChanged = true;
         }
       }
+
+      processedMatches.push({
+        name: localProd.name,
+        sku: localProd.sku || matchedScraped.sku || "N/A",
+        method: isSkuMatch ? "Direct SKU" : "Fuzzy Name",
+        outOfStock: isCurrentlyOut,
+        wasUpdated: hasChanged
+      });
     }
   }
 
@@ -333,7 +349,10 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
   }
 
   console.log(`⚡ Intelligent solver flushed ${operationStack.length} SQL updates!`);
-  return operationStack.length;
+  return {
+    updateCount: operationStack.length,
+    matches: processedMatches
+  };
 };
 
 // Bulk Sync Inventory State using Latest Scrape Result
@@ -346,12 +365,14 @@ export const syncInventory = async (req: any, res: any, next: any) => {
     }
 
     // Execute the Intelligent cross-resolver engine
-    const count = await executeIntelligentSync(scrapedProducts);
+    const syncResult = await executeIntelligentSync(scrapedProducts);
 
     res.status(200).json({
       success: true,
-      message: `Successfully synchronized inventory via intelligent resolver. Processed ${count} inventory adjustments!`,
-      updatedCount: count
+      message: `Successfully synchronized inventory via intelligent resolver. Processed ${syncResult.updateCount} inventory adjustments!`,
+      updatedCount: syncResult.updateCount,
+      totalMatches: syncResult.matches.length,
+      matches: syncResult.matches
     });
 
   } catch (error: any) {
@@ -375,9 +396,10 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
     await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
     await page.setViewport({ width: 1440, height: 900 });
 
-    // 1. Login Routine
+    // 1. High-Speed Login Routine
     console.log("📍 Logging into Koba portal...");
-    await page.goto("https://www.kobareseller.com/login", { waitUntil: "networkidle2" });
+    await page.goto("https://www.kobareseller.com/login", { waitUntil: "domcontentloaded", timeout: 20000 });
+    await page.waitForSelector("#email", { timeout: 10000 });
     
     const email = process.env.KOBA_EMAIL;
     const password = process.env.KOBA_PASSWORD;
@@ -392,81 +414,101 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
         if (btn) btn.click();
       });
     }
-    await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 15000 });
-    console.log("✅ Login Successful. Beginning Multi-page Extraction Loop...");
+    await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15000 });
+    await page.close(); // Close original login page context to preserve RAM
+    console.log("✅ Login Successful. Launching Concurrent Multi-page Scan...");
 
-    // 2. Deep Crawl Loop (Max 15 pages)
+    // 2. High-Performance Concurrent Deep Crawl Loop (Max 15 pages)
     let allFoundProducts: any[] = [];
     const MAX_PAGES = 15;
 
-    for (let p = 1; p <= MAX_PAGES; p++) {
-      const pageUrl = `https://www.kobareseller.com/dashboard/products?page=${p}`;
-      console.log(`📄 Scanning page ${p} of ${MAX_PAGES}...`);
-      
-      await page.goto(pageUrl, { waitUntil: "networkidle2", timeout: 20000 });
-
-      // Give extra 1 second just to be sure dynamic images loaded
-      await new Promise(resolve => setTimeout(resolve, 1200));
-
-      const pageItems = await page.evaluate(() => {
-        const items: any[] = [];
-        const images = Array.from(document.querySelectorAll("img"));
+    // High-speed dynamic concurrency parser
+    const scrapePageConcurrently = async (pageNum: number) => {
+      const tab = await browser.newPage();
+      try {
+        await tab.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
+        await tab.setViewport({ width: 1440, height: 900 });
         
-        images.forEach((img) => {
-          const src = img.getAttribute("src") || "";
-          if (!src || src.includes("logo")) return;
-          
-          let parent = img.parentElement;
-          let iters = 0;
-          while (parent && iters < 5) {
-            if (parent.textContent?.includes("SKU:") && parent.textContent?.includes("Price")) break;
-            parent = parent.parentElement;
-            iters++;
-          }
-
-          if (parent && parent.textContent) {
-            const text = parent.textContent;
-            const skuMatch = text.match(/SKU:\s*([A-Z0-9-]+)/i) || text.match(/SKU:\s*(\d+)/i);
-            if (!skuMatch) return;
-            const rawSku = skuMatch[1];
-            
-            // Extract the name payload for fuzzy support
-            const rawTitle = parent.textContent.split("SKU:")[0].trim();
-            const isOutOfStock = /Out\s*of\s*Stock/i.test(text) || /Sold\s*Out/i.test(text);
-            
-            if (!items.some(x => x.sku === rawSku)) {
-              items.push({ sku: rawSku, isOutOfStock, name: rawTitle });
-            }
-          }
+        console.log(`🚀 Scanning page ${pageNum}...`);
+        await tab.goto(`https://www.kobareseller.com/dashboard/products?page=${pageNum}`, { 
+          waitUntil: "domcontentloaded", 
+          timeout: 20000 
         });
+
+        // Wait for selector to mount and inject a dynamic stabilizer micro-delay
+        await tab.waitForSelector("img", { timeout: 5000 }).catch(() => {});
+        await new Promise(resolve => setTimeout(resolve, 400));
+
+        const items = await tab.evaluate(() => {
+          const results: any[] = [];
+          const images = Array.from(document.querySelectorAll("img"));
+          
+          images.forEach((img) => {
+            const src = img.getAttribute("src") || "";
+            if (!src || src.includes("logo")) return;
+            
+            let parent = img.parentElement;
+            let iters = 0;
+            while (parent && iters < 5) {
+              if (parent.textContent?.includes("SKU:") && parent.textContent?.includes("Price")) break;
+              parent = parent.parentElement;
+              iters++;
+            }
+
+            if (parent && parent.textContent) {
+              const text = parent.textContent;
+              const skuMatch = text.match(/SKU:\s*([A-Z0-9-]+)/i) || text.match(/SKU:\s*(\d+)/i);
+              if (!skuMatch) return;
+              const rawSku = skuMatch[1];
+              const rawTitle = parent.textContent.split("SKU:")[0].trim();
+              const isOutOfStock = /Out\s*of\s*Stock/i.test(text) || /Sold\s*Out/i.test(text);
+              
+              if (!results.some(x => x.sku === rawSku)) {
+                results.push({ sku: rawSku, isOutOfStock, name: rawTitle });
+              }
+            }
+          });
+          return results;
+        });
+
+        console.log(`   -> Page ${pageNum} completed. Extracted ${items.length} products.`);
         return items;
-      });
-
-      console.log(`   -> Found ${pageItems.length} items on page ${p}.`);
-      
-      if (pageItems.length === 0) {
-        console.log("🛑 No more products found on this page. Stopping iteration early.");
-        break; // Exit loop if page is empty
+      } catch (err: any) {
+        console.error(`   ❌ Error loading page ${pageNum}:`, err.message);
+        return [];
+      } finally {
+        await tab.close();
       }
+    };
 
-      allFoundProducts.push(...pageItems);
+    // Execute in parallel batches of 3 (lightweight on VPS RAM, but extremely fast!)
+    const BATCH_SIZE = 3;
+    for (let i = 1; i <= MAX_PAGES; i += BATCH_SIZE) {
+      const batchPromises = [];
+      for (let j = 0; j < BATCH_SIZE && (i + j) <= MAX_PAGES; j++) {
+        batchPromises.push(scrapePageConcurrently(i + j));
+      }
+      const batchResults = await Promise.all(batchPromises);
+      allFoundProducts.push(...batchResults.flat());
     }
 
     await browser.close();
-    console.log(`🏁 Scan Complete! Total parsed unique items: ${allFoundProducts.length}`);
+    console.log(`🏁 High-Speed Scan Complete! Total parsed unique items: ${allFoundProducts.length}`);
 
     // 3. Intelligent Database Processing
     if (allFoundProducts.length === 0) {
       return res.status(200).json({ success: false, message: "Scraper finished but no products were parsed from supplier dashboard." });
     }
 
-    const count = await executeIntelligentSync(allFoundProducts);
+    const syncResult = await executeIntelligentSync(allFoundProducts);
 
     res.status(200).json({
       success: true,
-      message: `System synchronized successfully! Processed ${allFoundProducts.length} supplier items and updated ${count} localized record fields.`,
+      message: `System synchronized successfully! Processed ${allFoundProducts.length} supplier items and updated ${syncResult.updateCount} localized record fields.`,
       totalScanned: allFoundProducts.length,
-      updatedCount: count
+      updatedCount: syncResult.updateCount,
+      totalMatches: syncResult.matches.length,
+      matches: syncResult.matches
     });
 
   } catch (error: any) {
