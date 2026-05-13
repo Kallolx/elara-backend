@@ -13,6 +13,7 @@ import statsRoutes from "./stats.routes";
 import wishlistRoutes from "./wishlist.routes";
 import offerRoutes from "./offer.routes";
 import searchRoutes from "./search.routes";
+import deliveryZoneRoutes from "./deliveryZone.routes";
 
 const router = Router();
 
@@ -31,6 +32,8 @@ router.use("/stats", statsRoutes);
 router.use("/wishlist", wishlistRoutes);
 router.use("/offers", offerRoutes);
 router.use("/search", searchRoutes);
+router.use("/delivery-zones", deliveryZoneRoutes);
+
 
 
 export default router;

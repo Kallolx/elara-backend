@@ -1,0 +1,1039 @@
+[
+  {
+    "district": "Bagerhat",
+    "subAreas": [
+      "Bagerhat sadar",
+      "Chitalmari",
+      "Fakirhat",
+      "Kachua upazila",
+      "Mollahat",
+      "Mongla",
+      "Morrelganj",
+      "Rampal",
+      "Sarankhola"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Bandarban",
+    "subAreas": [
+      "Ali Kadam",
+      "Bandarban Sadar",
+      "Lama",
+      "Naikhongchhari",
+      "Rowangchhari",
+      "Ruma",
+      "Thanchi"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Barguna",
+    "subAreas": [
+      "Amtali",
+      "Bamna",
+      "Barguna Sadar",
+      "Betagi",
+      "Patharghata",
+      "Taltali"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Barishal",
+    "subAreas": [
+      "Agailjhara",
+      "Babuganj",
+      "Bakerganj",
+      "Banaripara",
+      "Barishal Sadar",
+      "Gouronadi",
+      "Hizla",
+      "Mehendiganj",
+      "Muladi",
+      "Wazirpur"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Bhola",
+    "subAreas": [
+      "Bhola Sadar",
+      "Borhanuddin",
+      "Char Fasson",
+      "Daulatkhan",
+      "Lalmohan",
+      "Manpura",
+      "Tazumuddin"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Bogra",
+    "subAreas": [
+      "Alamdighi",
+      "Bogura Sadar",
+      "Dhunat",
+      "Dhupchancia",
+      "Gabtoli",
+      "Kahaloo",
+      "Nandigram",
+      "Saraikandi",
+      "Shajahanpur",
+      "Sherpur",
+      "Shibganj",
+      "Sonatola"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Brahmanbaria",
+    "subAreas": [
+      "Akhaura",
+      "Ashuganj",
+      "Bancharampur",
+      "Bijoynagar",
+      "Brahmanbaria Sadar",
+      "Kasba",
+      "Nabinagar",
+      "Nabinagar Bazar",
+      "Nasirnagar",
+      "Sarail"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Chandpur",
+    "subAreas": [
+      "Chandpur Sadar",
+      "Dhakirgaon",
+      "Faridganj",
+      "Haimchar",
+      "Hajiganj",
+      "Kachua",
+      "Matlab North",
+      "Matlab South",
+      "Shahrasti"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Chapainawabganj",
+    "subAreas": [
+      "Bholahat",
+      "Chapainawabganj Sadar",
+      "Gomastapur",
+      "Nachol",
+      "Shibganj Sadar"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Chittagong",
+    "subAreas": [
+      "Akbar Shah",
+      "Anwara",
+      "Bakolia",
+      "Bandar - CTG",
+      "Banskhali",
+      "Bayazid Bostami",
+      "Boalkhali",
+      "CEPZ",
+      "Chandanaish",
+      "Chandgaon",
+      "Chawk Bazar",
+      "Chittagong Sadar",
+      "Doublemooring",
+      "Fatikchori",
+      "Halishahar",
+      "Hathazari",
+      "Karnaphuli",
+      "KeraniHat",
+      "Khulshi",
+      "Kotwali - CTG",
+      "Lohagara",
+      "Mirsharai",
+      "Pahartali",
+      "Panchlaish",
+      "Patenga",
+      "Patiya",
+      "Rangunia",
+      "Raozan",
+      "Sadarghat - CTG",
+      "Sandwip",
+      "Satkania",
+      "Sitakunda",
+      "Sitakunda (Citygate)",
+      "কেরানীহাট"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Invoice Fixed Charge",
+    "subAreas": [
+      "Fixed"
+    ],
+    "charge": 1
+  },
+  {
+    "district": "White Poly Fixed Charge",
+    "subAreas": [
+      "Fixed"
+    ],
+    "charge": 18
+  },
+  {
+    "district": "White Box Fixed Charge",
+    "subAreas": [
+      "Fixed"
+    ],
+    "charge": 37
+  },
+  {
+    "district": "Online Payment Processing Fixed Fee",
+    "subAreas": [
+      "Fixed"
+    ],
+    "charge": 5
+  },
+  {
+    "district": "Free Shipping Conditional Amount",
+    "subAreas": [
+      "Fixed"
+    ],
+    "charge": 3000
+  },
+  {
+    "district": "Packing Charge Free Conditional Amount",
+    "subAreas": [
+      "Fixed"
+    ],
+    "charge": 5000
+  },
+  {
+    "district": "Chuadanga",
+    "subAreas": [
+      "Alamdanga",
+      "Chuadanga Sadar",
+      "Damurhuda",
+      "Darshana",
+      "Jibannagar"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Comilla",
+    "subAreas": [
+      "Bangora-Bazar",
+      "Barura",
+      "Brahmanpara",
+      "Burichang",
+      "Chandina",
+      "Chauddagram",
+      "Comilla Sadar",
+      "Daudkandi",
+      "Debidwar",
+      "Homna",
+      "Kandirpar",
+      "Laksam",
+      "Lalmai",
+      "Meghna",
+      "Monoharganj",
+      "Muradnagar",
+      "Nangalkot",
+      "Titas"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Cox's Bazar",
+    "subAreas": [
+      "Chakaria",
+      "Cox's Bazar Sadar",
+      "Eidgaon",
+      "Kutubdia",
+      "Moheskhali",
+      "Pekua",
+      "Ramu",
+      "Teknaf",
+      "Ukhiya"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Dhaka",
+    "subAreas": [
+      "Adabor",
+      "Airport",
+      "Ati Bazar (Keraniganj)",
+      "Azompur",
+      "Badda",
+      "Banani",
+      "Bangshal",
+      "Bashundhara R/A",
+      "Bhashantek",
+      "Cantonment",
+      "Chalkbazar",
+      "Dakshin Khan",
+      "Darus Salam",
+      "Demra",
+      "Dhanmondi",
+      "Gandaria",
+      "Gulistan",
+      "Gulshan",
+      "Hatirjheel",
+      "Hazaribag",
+      "Jattrabari",
+      "Kadamtali",
+      "Kafrul",
+      "Kalabagan",
+      "Kamrangirchar",
+      "Khilgaon",
+      "Khilkhet",
+      "Kodomtali",
+      "Kotwali",
+      "Lalbagh",
+      "Mirpur",
+      "Mohammadpur",
+      "Motijheel",
+      "Mugda",
+      "New Market",
+      "Pallabi",
+      "Paltan",
+      "Panthapath",
+      "Purbachal",
+      "Ramna",
+      "Rampura",
+      "Rupnagar",
+      "Sabujbag",
+      "Shah Ali",
+      "Shahbag",
+      "Shahjahanpur",
+      "Sher-e-Bangla Nagar",
+      "Shyampur",
+      "Sutrapur",
+      "Tejgaon",
+      "Tejgaon Industrial Area",
+      "Turag",
+      "Uttara",
+      "Uttarkhan",
+      "Vasantek",
+      "Vatara",
+      "Wari",
+      "Zone Not Clear"
+    ],
+    "charge": 100
+  },
+  {
+    "district": "Dhaka Sub-Urban",
+    "subAreas": [
+      "Ashulia",
+      "Dhamrai",
+      "Dohar",
+      "Hemayetpur",
+      "Keraniganj Model",
+      "Nawabganj",
+      "Savar",
+      "South Keraniganj"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Dinajpur",
+    "subAreas": [
+      "Biral",
+      "Birampur",
+      "Birganj",
+      "Bochaganj",
+      "Chirirbandar",
+      "Dinajpur Sadar",
+      "Fulbari",
+      "Ghoraghat",
+      "Hakimpur",
+      "Kaharole",
+      "Khansama",
+      "Nawabganj",
+      "Parbatipur"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Faridpur",
+    "subAreas": [
+      "Alfadanga",
+      "Bhanga",
+      "Boalmari",
+      "Charbhadrasan",
+      "Faridpur",
+      "Faridpur Sadar",
+      "Madhukhali",
+      "Nagarkanda",
+      "Sadarpur",
+      "Shaltha"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Feni",
+    "subAreas": [
+      "Chagalnaiya",
+      "Daganbhuiyan",
+      "Feni Sadar",
+      "Fulgazi",
+      "Parshuram",
+      "Sonagazi"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Gaibandha",
+    "subAreas": [
+      "Fulchari",
+      "Gabindaganj",
+      "Gaibandha Sadar",
+      "Palashbari",
+      "Sadullapur",
+      "Saghata",
+      "Sundarganj"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Gazipur",
+    "subAreas": [
+      "Gazipur Sadar",
+      "Joydebpur",
+      "Kaliakair",
+      "Kaliakair Upazila",
+      "Kaliganj Upazila",
+      "Kapasia",
+      "Kashimpur",
+      "Sreepur",
+      "Tongi"
+    ],
+    "charge": 60
+  },
+  {
+    "district": "Gopalganj",
+    "subAreas": [
+      "Gopalganj Sadar",
+      "Kashiani",
+      "Kotalipara",
+      "Muksudpur",
+      "Tungipara"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Habiganj",
+    "subAreas": [
+      "Ajmiriganj",
+      "Bahubal",
+      "Baniachong",
+      "Chunarughat",
+      "Habiganj Sadar",
+      "Lakhai",
+      "Madhobpur",
+      "Nabiganj",
+      "Shayestaganj"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Jamalpur",
+    "subAreas": [
+      "Baksiganj",
+      "Dewanganj",
+      "Islampur",
+      "Jamalpur Sadar",
+      "Madarganj",
+      "Melandaha",
+      "Sarishabari"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Jashore",
+    "subAreas": [
+      "Abhaynagar",
+      "Bagharpara",
+      "Chaugacha",
+      "Jashore Sadar",
+      "Jhikorgacha",
+      "Keshobpur",
+      "Manirampur",
+      "Sharsha"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Jhalokati",
+    "subAreas": [
+      "Jhalokati Sadar",
+      "Kathalia",
+      "Nalchity",
+      "Rajapur"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Jhenaidah",
+    "subAreas": [
+      "Harinakunda",
+      "Jhenaidah Sadar",
+      "Kaliganj",
+      "Kotchandpur",
+      "Maheshpur",
+      "Shailkupa"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Joypurhat",
+    "subAreas": [
+      "Akkelpur",
+      "Joypurhat Sadar",
+      "Kalai",
+      "Khetlal",
+      "Panchbibi"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Khagrachori",
+    "subAreas": [
+      "Dighinala",
+      "Guimara",
+      "Khagrachari Sadar",
+      "Laxmichari",
+      "Mahalchari",
+      "Manikchari",
+      "Matiranga",
+      "Panchari",
+      "Ramgarh"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Khulna",
+    "subAreas": [
+      "Batiaghata",
+      "Dacope",
+      "Dighalia",
+      "Dumuria",
+      "Khulna Sadar",
+      "Koyra",
+      "Paikgacha",
+      "Phultala",
+      "Rupsa",
+      "Terokhada"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "kishoreganj",
+    "subAreas": [
+      "Austagram",
+      "Bajitpur",
+      "Bhairab",
+      "Hossainpur",
+      "Itna",
+      "Karimganj",
+      "Katiadi",
+      "Kishoreganj Sadar",
+      "Kuliarchar",
+      "Mithamain",
+      "Nikli",
+      "Pakundia",
+      "Tarail"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Kurigram",
+    "subAreas": [
+      "Bhurungamari",
+      "Char Rajibpur",
+      "Chilmari",
+      "Kurigram Sadar",
+      "Nageshwari",
+      "Phulbari",
+      "Rajarhat",
+      "Raomari",
+      "Ulipur"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Kustia",
+    "subAreas": [
+      "Bheramara",
+      "Daulatpur",
+      "Khoksa",
+      "Kumarkhali",
+      "Kushtia Sadar",
+      "Mirpur"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Lalmonirhat",
+    "subAreas": [
+      "Aditmari",
+      "Hatibandha",
+      "Kaliganj Sadar",
+      "Lalmonirhat Sadar",
+      "Patgram"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Laxmipur",
+    "subAreas": [
+      "Chandraganj",
+      "Kamalnagar",
+      "Laxmipur Sadar",
+      "Raipur",
+      "Ramganj",
+      "Ramgati"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Madaripur",
+    "subAreas": [
+      "Dasar",
+      "Kalkini",
+      "Madaripur Sadar",
+      "Rajoir",
+      "Shibchar"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Magura",
+    "subAreas": [
+      "Magura Sadar",
+      "Mohammadpur",
+      "Shalikha",
+      "Sreepur"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Manikganj",
+    "subAreas": [
+      "Daulatpur",
+      "Ghior",
+      "Harirampur",
+      "Manikganj Sadar",
+      "Saturia",
+      "Shivalaya",
+      "Singair"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Meherpur",
+    "subAreas": [
+      "Gangni",
+      "Meherpur Sadar",
+      "Mujibnagar"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Moulvibazar",
+    "subAreas": [
+      "Barlekha",
+      "Juri",
+      "Kamalganj",
+      "Kamolganj",
+      "Kulaura",
+      "Moulvibazar Sadar",
+      "Rajnagar",
+      "Rajnagor",
+      "Sherpur Moulvibazar",
+      "Sreemangal"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Munshiganj",
+    "subAreas": [
+      "Gazaria",
+      "Louhajang",
+      "Munshiganj Sadar",
+      "Sirajdikhan",
+      "Sreenagar",
+      "Tongibari"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Mymensingh",
+    "subAreas": [
+      "Bhaluka",
+      "Dhobaura",
+      "Fulbaria",
+      "Gafargaon",
+      "Gouripur",
+      "Haluaghat",
+      "Ishwarganj",
+      "Muktagacha",
+      "Mymensingh Sadar",
+      "Nandail",
+      "Phulpur",
+      "Tarakanda",
+      "Trishal"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Naogaon",
+    "subAreas": [
+      "Atrai",
+      "Badolgachi",
+      "Dhamoirhat",
+      "Manda",
+      "Mohadevpur",
+      "Naogaon Sadar",
+      "Niamatpur",
+      "Patnitala",
+      "Porsha",
+      "Raninagar",
+      "Sapahar"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Narail",
+    "subAreas": [
+      "Kalia",
+      "Lohagara",
+      "Narail Sadar"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Narayanganj",
+    "subAreas": [
+      "Araihajar",
+      "Bandar",
+      "Fatullah",
+      "Kanchpur Highway",
+      "Narayanganj Sadar",
+      "Rupganj",
+      "Shiddhirganj",
+      "Sonargaon"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Narshindi",
+    "subAreas": [
+      "Belabo",
+      "Ghorashal",
+      "Madhobdi",
+      "Manohardi",
+      "Monohardi",
+      "Narsingdi Sadar",
+      "Palash",
+      "Raipura",
+      "Shibpur"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Natore",
+    "subAreas": [
+      "Bagatipara",
+      "Baraigram",
+      "Gopalpur Pourosova",
+      "Gurudaspur",
+      "Lalpur",
+      "Naldanga",
+      "Natore Sadar",
+      "Singra"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Netrokona",
+    "subAreas": [
+      "Atpara",
+      "Barhatta",
+      "Durgapur",
+      "Kalmakanda",
+      "Kendua",
+      "Khaliajuri",
+      "Madan",
+      "Mohonganj",
+      "Netrokona Sadar",
+      "Purbadhala"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Nilphamari",
+    "subAreas": [
+      "Dimla",
+      "Domar",
+      "Jaldhaka",
+      "Kishoreganj",
+      "Nilphamari Sadar",
+      "Saidpur"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Noakhali",
+    "subAreas": [
+      "Begamganj",
+      "Chatkhil",
+      "Companyganj",
+      "Hatiya",
+      "Kabir Hat",
+      "Noakhali Sadar",
+      "Senbagh",
+      "Sonaimuri",
+      "Subarnachar"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Pabna",
+    "subAreas": [
+      "Atgharia",
+      "Bera",
+      "Bhangura",
+      "Chatmohar",
+      "Ishwardi",
+      "Pabna Sadar",
+      "Santhia",
+      "Sujanagar"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Panchgarh",
+    "subAreas": [
+      "Atwari",
+      "Boda",
+      "Debiganj",
+      "Panchagarh Sadar",
+      "Tetulia"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Patuakhali",
+    "subAreas": [
+      "Bauphal",
+      "Dashmina",
+      "Dumki",
+      "Galachipa",
+      "Kalapara",
+      "Mirzaganj",
+      "Patuakhali Sadar",
+      "Rangabali"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Pirojpur",
+    "subAreas": [
+      "Bhandaria",
+      "Indurkani",
+      "Kawkhali",
+      "Mathbaria",
+      "Nazirpur",
+      "Nesarabad",
+      "Pirojpur Sadar",
+      "Swarupkati"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Rajbari",
+    "subAreas": [
+      "Baliakandi",
+      "Goalandaha",
+      "Kalukhali",
+      "Pangsha",
+      "Rajbari Sadar"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Rajshahi",
+    "subAreas": [
+      "Bagha",
+      "Bagmara",
+      "Charghat",
+      "Durgapur",
+      "Godagari",
+      "Mohanpur",
+      "Paba",
+      "Puthia",
+      "Rajshahi Sadar",
+      "Tanore"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Rangamati",
+    "subAreas": [
+      "Bagaichhari",
+      "Barkal",
+      "Belaichhari",
+      "Juraichhari",
+      "Kaptai",
+      "Kawkhali",
+      "Langadu",
+      "Naniarchar",
+      "Rajasthali",
+      "Rangamati Sadar"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Rangpur",
+    "subAreas": [
+      "Badarganj",
+      "Gangachara",
+      "Kaunia",
+      "Mitapukur",
+      "Pirgacha",
+      "Pirganj",
+      "Rangpur Sadar",
+      "Shatibari",
+      "Taraganj"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Shariatpur",
+    "subAreas": [
+      "Bhedarganj",
+      "Damudya",
+      "Gosairhat",
+      "Naria",
+      "Sakhipur upazila",
+      "Shariatpur sadar",
+      "Zajira"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Shatkhira",
+    "subAreas": [
+      "Assasuni",
+      "Debhata",
+      "Kalaroa",
+      "Kaliganj",
+      "Shatkhira sadar",
+      "Shyamnagar",
+      "Tala"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Sherpur",
+    "subAreas": [
+      "Jhenaigati",
+      "Nakla",
+      "Nalitabari",
+      "Sherpur sadar",
+      "Sreebardi"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Sirajganj",
+    "subAreas": [
+      "Belkuchi",
+      "Chowhali",
+      "Kamarkhanda",
+      "Kazipur",
+      "Raiganj",
+      "Shahjadpur",
+      "Sirajganj Sadar",
+      "Tarash",
+      "Ullapara"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Sunamganj",
+    "subAreas": [
+      "Bishwamvapur",
+      "Chhatak",
+      "Derai",
+      "Dharmapasha",
+      "Dowarabazar",
+      "Jagannathpur",
+      "Jamalganj",
+      "Moddonagar",
+      "Shantiganj",
+      "Sullah",
+      "Sunamganj Sadar",
+      "Tahirpur"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Sylhet",
+    "subAreas": [
+      "Balaganj",
+      "Beanibazar",
+      "Bishanath",
+      "Companyganj upazila",
+      "Fenchuganj",
+      "gobindaganj",
+      "Golapganj",
+      "Gowainghat",
+      "Jalalabad",
+      "Jalalabad cantonmen",
+      "Jintiapur",
+      "Kanaighat",
+      "Osmaninagar",
+      "Shahporan",
+      "shaistaganj",
+      "South Surma",
+      "Sylhet sadar",
+      "Zakiganj"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Tangail",
+    "subAreas": [
+      "Basail",
+      "Bhuapur",
+      "Delduar",
+      "Dhanbari",
+      "Ghatail",
+      "Gopalpur",
+      "Kalihati",
+      "Madhupur",
+      "Mirzapur",
+      "Nagarpur",
+      "Sakhipur",
+      "Sokhipur",
+      "Tangail Sadar"
+    ],
+    "charge": 110
+  },
+  {
+    "district": "Thakurgaon",
+    "subAreas": [
+      "Baliadangi",
+      "Haripur",
+      "Pirganj upazila",
+      "Ranisankail",
+      "Thakurgaon Sadar"
+    ],
+    "charge": 110
+  }
+]
