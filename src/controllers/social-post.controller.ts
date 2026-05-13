@@ -7,6 +7,13 @@ export const getAllSocialPosts = async (req: Request, res: Response, next: NextF
   try {
     const posts = await prisma.socialPost.findMany({
       orderBy: { order: "asc" },
+      include: {
+        products: {
+          include: {
+            sizes: true,
+          },
+        },
+      },
     });
     res.status(200).json({ success: true, data: posts });
   } catch (error) {
@@ -16,22 +23,58 @@ export const getAllSocialPosts = async (req: Request, res: Response, next: NextF
 
 export const createSocialPost = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { type, mediaUrl, link, order } = req.body;
+    const { type, mediaUrl, link, order, thumbnailUrl, productIds } = req.body;
 
-    if (!mediaUrl) {
-      return res.status(400).json({ success: false, message: "mediaUrl is required" });
+    if (!mediaUrl || !productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ success: false, message: "mediaUrl and productIds (array) are required" });
     }
 
     const post = await prisma.socialPost.create({
       data: {
-        type: type || "image",
+        type: type || "video",
         mediaUrl,
+        thumbnailUrl,
         link,
         order: order ? Number(order) : 0,
+        products: {
+          connect: productIds.map((id: string) => ({ id }))
+        }
       },
+      include: {
+        products: true
+      }
     });
 
     res.status(201).json({ success: true, message: "Social post added", data: post });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateSocialPost = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { type, mediaUrl, link, order, thumbnailUrl, productIds } = req.body;
+
+    const post = await prisma.socialPost.update({
+      where: { id },
+      data: {
+        type,
+        mediaUrl,
+        thumbnailUrl,
+        link,
+        order: order ? Number(order) : 0,
+        products: productIds ? {
+          set: [], // Clear existing
+          connect: productIds.map((id: string) => ({ id }))
+        } : undefined
+      },
+      include: {
+        products: true
+      }
+    });
+
+    res.status(200).json({ success: true, message: "Social post updated", data: post });
   } catch (error) {
     next(error);
   }

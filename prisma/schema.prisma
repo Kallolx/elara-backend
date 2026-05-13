@@ -57,6 +57,7 @@ model Product {
   reviews          Review[]
   wishlistedBy     User[]        @relation("UserWishlists")
   offers           Offer[]
+  socialPosts      SocialPost[]  @relation("SocialPostProducts")
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 }
@@ -129,13 +130,15 @@ model Order {
 }
 
 model SocialPost {
-  id        String   @id @default(uuid())
-  type      String   @default("image") // "image" or "video"
-  mediaUrl  String
-  link      String?
-  order     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String    @id @default(uuid())
+  type         String    @default("video") // "image" or "video"
+  mediaUrl     String
+  thumbnailUrl String?
+  products     Product[] @relation("SocialPostProducts")
+  link         String?
+  order        Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model Offer {

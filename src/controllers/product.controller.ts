@@ -2,29 +2,73 @@ import { Request, Response, NextFunction } from "express";
 import prisma from "../config/database";
 
 // Fetch all products with pagination, search, and filtering capabilities
-export const getAllProducts = async (req: Request, res: Response, next: NextFunction) => {
+export const getAllProducts = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    const { categoryId, brandId, search } = req.query;
-    
+    const {
+      categoryId,
+      brandId,
+      search,
+      subcategory,
+      maxPrice,
+      hasOffer,
+      minRating,
+      sort,
+    } = req.query;
+
     // Pagination controls
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 0; // default 0 means fetch all for compatibility
+    const limit = parseInt(req.query.limit as string) || 0;
     const skip = limit > 0 ? (page - 1) * limit : undefined;
     const take = limit > 0 ? limit : undefined;
 
+    // Parse multi-select inputs
+    const categoryIds =
+      categoryId && categoryId !== "All" ? String(categoryId).split(",") : [];
+    const brandIds =
+      brandId && brandId !== "All" ? String(brandId).split(",") : [];
+
     // Dynamic query conditions
     const whereConditions: any = {
-      ...(categoryId ? { categoryId: String(categoryId) } : {}),
-      ...(brandId ? { brandId: String(brandId) } : {}),
+      ...(categoryIds.length > 0 ? { categoryId: { in: categoryIds } } : {}),
+      ...(brandIds.length > 0 ? { brandId: { in: brandIds } } : {}),
+      ...(subcategory && subcategory !== "All"
+        ? { subcategory: String(subcategory) }
+        : {}),
+      ...(hasOffer === "true" ? { hasOffer: true } : {}),
+      ...(minRating ? { rating: { gte: parseFloat(String(minRating)) } } : {}),
     };
 
-    // Highly optimized Name & SKU Fuzzy Search Injection
+    if (maxPrice) {
+      whereConditions.sizes = {
+        some: {
+          price: { lte: parseFloat(String(maxPrice)) },
+        },
+      };
+    }
+
+    // Fuzzy search
     if (search && String(search).trim().length > 0) {
       const cleanSearch = String(search).trim();
       whereConditions.OR = [
         { name: { contains: cleanSearch, mode: "insensitive" } },
         { sku: { contains: cleanSearch, mode: "insensitive" } },
       ];
+    }
+
+    // Dynamic Sorting
+    let orderBy: any = { createdAt: "desc" };
+    if (sort === "price-asc") {
+      orderBy = { sizes: { _min: { price: "asc" } } };
+    } else if (sort === "price-desc") {
+      orderBy = { sizes: { _min: { price: "desc" } } };
+    } else if (sort === "oldest") {
+      orderBy = { createdAt: "asc" };
+    } else if (sort === "newest") {
+      orderBy = { createdAt: "desc" };
     }
 
     // Execute total metric aggregation and entity collection in parallel
@@ -38,22 +82,22 @@ export const getAllProducts = async (req: Request, res: Response, next: NextFunc
           sizes: { orderBy: { price: "asc" } },
           reviews: { orderBy: { date: "desc" } },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip,
         take,
       }),
       prisma.product.count({ where: whereConditions }),
     ]);
 
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       data: products,
       pagination: {
         total: totalCount,
         page: page,
         limit: limit > 0 ? limit : totalCount,
-        totalPages: limit > 0 ? Math.ceil(totalCount / limit) : 1
-      }
+        totalPages: limit > 0 ? Math.ceil(totalCount / limit) : 1,
+      },
     });
   } catch (error) {
     next(error);
@@ -61,7 +105,11 @@ export const getAllProducts = async (req: Request, res: Response, next: NextFunc
 };
 
 // Fetch a single product by ID or Slug (e.g., "EL-CLN-VC-150" or "bright-cleanser")
-export const getProductById = async (req: Request, res: Response, next: NextFunction) => {
+export const getProductById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
 
@@ -100,17 +148,20 @@ export const getProductById = async (req: Request, res: Response, next: NextFunc
         },
       });
 
-      product = allProducts.find((p) => {
-        const dynamicSlug = p.name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/(^-|-$)+/g, "");
-        return dynamicSlug === id;
-      }) || null;
+      product =
+        allProducts.find((p) => {
+          const dynamicSlug = p.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)+/g, "");
+          return dynamicSlug === id;
+        }) || null;
     }
 
     if (!product) {
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     }
 
     res.status(200).json({ success: true, data: product });
@@ -120,7 +171,11 @@ export const getProductById = async (req: Request, res: Response, next: NextFunc
 };
 
 // Create a new product with sizes and reviews
-export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
+export const createProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const {
       id,
@@ -138,7 +193,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
       image,
       gallery,
       isOutOfStock, // Added global state
-      sizes,   // Array of { label, price, oldPrice, sku, isOutOfStock }
+      sizes, // Array of { label, price, oldPrice, sku, isOutOfStock }
       reviews, // Array of { author, rating, title, text }
       brandId,
     } = req.body;
@@ -151,9 +206,14 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     }
 
     // Verify category exists
-    const categoryExists = await prisma.category.findUnique({ where: { id: categoryId } });
+    const categoryExists = await prisma.category.findUnique({
+      where: { id: categoryId },
+    });
     if (!categoryExists) {
-      return res.status(400).json({ success: false, message: "Specified Category ID does not exist" });
+      return res.status(400).json({
+        success: false,
+        message: "Specified Category ID does not exist",
+      });
     }
 
     // Auto-generate Product ID if not provided
@@ -165,20 +225,31 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)+/g, "");
 
-      const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const randomSuffix = Math.random()
+        .toString(36)
+        .substring(2, 6)
+        .toUpperCase();
       finalId = `EL-${categorySlug.toUpperCase()}-${productSlug.toUpperCase()}-${randomSuffix}`;
     }
 
     // Check if ID is unique
-    const idExists = await prisma.product.findUnique({ where: { id: finalId } });
+    const idExists = await prisma.product.findUnique({
+      where: { id: finalId },
+    });
     if (idExists) {
-      return res.status(400).json({ success: false, message: "Product with this ID already exists" });
+      return res.status(400).json({
+        success: false,
+        message: "Product with this ID already exists",
+      });
     }
 
     // Check if SKU is unique
     const skuExists = await prisma.product.findUnique({ where: { sku } });
     if (skuExists) {
-      return res.status(400).json({ success: false, message: "Product with this SKU already exists" });
+      return res.status(400).json({
+        success: false,
+        message: "Product with this SKU already exists",
+      });
     }
 
     // Create the product atomic operation
@@ -200,24 +271,30 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
         image,
         gallery: gallery || [],
         isOutOfStock: isOutOfStock === true,
-        sizes: sizes && Array.isArray(sizes) ? {
-          create: sizes.map((s: any) => ({
-            label: s.label,
-            price: Number(s.price),
-            oldPrice: s.oldPrice ? Number(s.oldPrice) : null,
-            sku: s.sku || null,
-            isOutOfStock: s.isOutOfStock === true,
-          })),
-        } : undefined,
-        reviews: reviews && Array.isArray(reviews) ? {
-          create: reviews.map((r: any) => ({
-            author: r.author,
-            rating: Number(r.rating),
-            title: r.title,
-            text: r.text,
-            date: r.date ? new Date(r.date) : new Date(),
-          })),
-        } : undefined,
+        sizes:
+          sizes && Array.isArray(sizes)
+            ? {
+                create: sizes.map((s: any) => ({
+                  label: s.label,
+                  price: Number(s.price),
+                  oldPrice: s.oldPrice ? Number(s.oldPrice) : null,
+                  sku: s.sku || null,
+                  isOutOfStock: s.isOutOfStock === true,
+                })),
+              }
+            : undefined,
+        reviews:
+          reviews && Array.isArray(reviews)
+            ? {
+                create: reviews.map((r: any) => ({
+                  author: r.author,
+                  rating: Number(r.rating),
+                  title: r.title,
+                  text: r.text,
+                  date: r.date ? new Date(r.date) : new Date(),
+                })),
+              }
+            : undefined,
       },
       include: {
         sizes: true,
@@ -238,7 +315,11 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 };
 
 // Update an existing product and nested sizes/reviews in a transaction
-export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
+export const updateProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
     const {
@@ -256,27 +337,37 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       image,
       gallery,
       isOutOfStock, // Added global state
-      sizes,        // Array of { label, price, oldPrice, sku, isOutOfStock }
+      sizes, // Array of { label, price, oldPrice, sku, isOutOfStock }
       reviews,
       brandId,
     } = req.body;
 
     const existingProduct = await prisma.product.findUnique({ where: { id } });
     if (!existingProduct) {
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     }
 
     if (sku && sku !== existingProduct.sku) {
       const skuCheck = await prisma.product.findUnique({ where: { sku } });
       if (skuCheck) {
-        return res.status(400).json({ success: false, message: "Product with this SKU already exists" });
+        return res.status(400).json({
+          success: false,
+          message: "Product with this SKU already exists",
+        });
       }
     }
 
     if (categoryId) {
-      const categoryExists = await prisma.category.findUnique({ where: { id: categoryId } });
+      const categoryExists = await prisma.category.findUnique({
+        where: { id: categoryId },
+      });
       if (!categoryExists) {
-        return res.status(400).json({ success: false, message: "Specified Category ID does not exist" });
+        return res.status(400).json({
+          success: false,
+          message: "Specified Category ID does not exist",
+        });
       }
     }
 
@@ -298,36 +389,49 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
           sku,
           name,
           categoryId,
-          brandId: brandId !== undefined ? (brandId || null) : undefined,
+          brandId: brandId !== undefined ? brandId || null : undefined,
           subcategory,
           hasOffer,
-          rating: rating !== undefined && rating !== null ? Number(rating) : undefined,
-          reviewCount: reviewCount !== undefined && reviewCount !== null ? Number(reviewCount) : undefined,
+          rating:
+            rating !== undefined && rating !== null
+              ? Number(rating)
+              : undefined,
+          reviewCount:
+            reviewCount !== undefined && reviewCount !== null
+              ? Number(reviewCount)
+              : undefined,
           shortDescription,
           description,
           ingredients,
           howToUse,
           image,
           gallery,
-          isOutOfStock: isOutOfStock !== undefined ? (isOutOfStock === true) : undefined,
-          sizes: sizes && Array.isArray(sizes) ? {
-            create: sizes.map((s: any) => ({
-              label: s.label,
-              price: Number(s.price),
-              oldPrice: s.oldPrice ? Number(s.oldPrice) : null,
-              sku: s.sku || null,
-              isOutOfStock: s.isOutOfStock === true,
-            })),
-          } : undefined,
-          reviews: reviews && Array.isArray(reviews) ? {
-            create: reviews.map((r: any) => ({
-              author: r.author,
-              rating: Number(r.rating),
-              title: r.title,
-              text: r.text,
-              date: r.date ? new Date(r.date) : new Date(),
-            })),
-          } : undefined,
+          isOutOfStock:
+            isOutOfStock !== undefined ? isOutOfStock === true : undefined,
+          sizes:
+            sizes && Array.isArray(sizes)
+              ? {
+                  create: sizes.map((s: any) => ({
+                    label: s.label,
+                    price: Number(s.price),
+                    oldPrice: s.oldPrice ? Number(s.oldPrice) : null,
+                    sku: s.sku || null,
+                    isOutOfStock: s.isOutOfStock === true,
+                  })),
+                }
+              : undefined,
+          reviews:
+            reviews && Array.isArray(reviews)
+              ? {
+                  create: reviews.map((r: any) => ({
+                    author: r.author,
+                    rating: Number(r.rating),
+                    title: r.title,
+                    text: r.text,
+                    date: r.date ? new Date(r.date) : new Date(),
+                  })),
+                }
+              : undefined,
         },
         include: {
           sizes: true,
@@ -349,38 +453,53 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
 };
 
 // Delete product (cascades automatically to sizes and reviews)
-export const deleteProduct = async (req: Request, res: Response, next: NextFunction) => {
+export const deleteProduct = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id } = req.params;
 
     const existing = await prisma.product.findUnique({ where: { id } });
     if (!existing) {
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     }
 
     await prisma.product.delete({ where: { id } });
 
-    res.status(200).json({ success: true, message: "Product deleted successfully" });
+    res
+      .status(200)
+      .json({ success: true, message: "Product deleted successfully" });
   } catch (error) {
     next(error);
   }
 };
 
 // Unlink an offer from a product
-export const unlinkOffer = async (req: Request, res: Response, next: NextFunction) => {
+export const unlinkOffer = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { id: productId, offerId } = req.params;
-    
+
     await prisma.product.update({
       where: { id: productId },
       data: {
         offers: {
-          disconnect: { id: offerId }
-        }
-      }
+          disconnect: { id: offerId },
+        },
+      },
     });
-    
-    res.json({ success: true, message: "Offer unlinked from product successfully" });
+
+    res.json({
+      success: true,
+      message: "Offer unlinked from product successfully",
+    });
   } catch (error) {
     next(error);
   }

@@ -34,6 +34,4 @@ router.use("/offers", offerRoutes);
 router.use("/search", searchRoutes);
 router.use("/delivery-zones", deliveryZoneRoutes);
 
-
-
 export default router;
