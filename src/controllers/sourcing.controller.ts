@@ -191,12 +191,25 @@ export const scrapeKobaProducts = async (req: any, res: any, next: any) => {
 const executeIntelligentSync = async (scrapedProducts: any[]) => {
   // 1. Gather all local inventory items for in-memory high-performance cross-analysis
   const localInventory = await prisma.product.findMany({
-    include: { sizes: true }
+    include: { 
+      sizes: true,
+      category: true,
+      brand: true
+    }
   });
 
   const productStatusQueues: { id: string; isOutOfStock: boolean }[] = [];
   const sizeStatusQueues: { id: string; isOutOfStock: boolean }[] = [];
-  const processedMatches: { name: string; sku: string; method: string; outOfStock: boolean; wasUpdated: boolean }[] = [];
+  const processedMatches: { 
+    id: string;
+    name: string; 
+    sku: string; 
+    method: string; 
+    outOfStock: boolean; 
+    wasUpdated: boolean;
+    categoryName: string;
+    brandName: string;
+  }[] = [];
 
   // Text Normalization for dynamic fuzzy matching
   const cleanText = (val: string) => String(val || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -306,11 +319,14 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
     }
 
     processedMatches.push({
+      id: localProd.id,
       name: localProd.name,
       sku: localProd.sku || topLevelMatchedScraped.sku || "N/A",
       method: (localSkus.includes(normalizeSku(topLevelMatchedScraped.sku))) ? "Direct SKU" : "Fuzzy Name",
       outOfStock: localProd.isOutOfStock,
-      wasUpdated: hasChanged
+      wasUpdated: hasChanged,
+      categoryName: localProd.category?.name || "N/A",
+      brandName: localProd.brand?.name || "N/A"
     });
   }
 
