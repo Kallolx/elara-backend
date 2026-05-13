@@ -439,7 +439,7 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
 
     // 2. High-Performance Concurrent Deep Crawl Loop (Supports Dynamic Deep Scanning)
     let allFoundProducts: any[] = [];
-    const MAX_PAGES = 60; // Dynamically scan up to 60 pages (600 items) for absolute catalog coverage!
+    const MAX_PAGES = 100; // Dynamically scan up to 100 pages (1,000 items) for absolute, 100% catalog coverage!
 
     // High-speed dynamic concurrency parser
     const scrapePageConcurrently = async (pageNum: number) => {
@@ -501,8 +501,8 @@ export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
       }
     };
 
-    // Execute in parallel batches of 3 (lightweight on VPS RAM, but extremely fast!)
-    const BATCH_SIZE = 3;
+    // Execute in parallel batches of 4 (lightweight on VPS RAM, but incredibly fast!)
+    const BATCH_SIZE = 4;
     for (let i = 1; i <= MAX_PAGES; i += BATCH_SIZE) {
       const batchPromises = [];
       for (let j = 0; j < BATCH_SIZE && (i + j) <= MAX_PAGES; j++) {
