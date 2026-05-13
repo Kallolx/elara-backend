@@ -384,7 +384,7 @@ export const syncInventory = async (req: any, res: any, next: any) => {
 // Full-Automated Background Direct Sync: Scraping multiple pages sequentially and updating DB internally.
 export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
   req.setTimeout(600000); // Extend connection timeout tolerance to 10 minutes for full crawls
-  let browser;
+  let browser: any;
   try {
     console.log("🚀 Initiating Full Background Automated Stock Sync...");
     browser = await puppeteer.launch({
