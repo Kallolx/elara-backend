@@ -201,7 +201,7 @@ const executeIntelligentSync = async (scrapedProducts: any[]) => {
   const cleanText = (val: string) => String(val || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   
   // Robust SKU Normalizer (strips 'KOBA-', dashes, spaces, converts to pure raw alphanumeric)
-  const normalizeSku = (val: string) => String(val || "").toUpperCase().replace(/^KOBA-/, "").replace(/[^A-Z0-9]/g, "").trim();
+  const normalizeSku = (val: any) => String(val || "").toUpperCase().replace(/^KOBA-/, "").replace(/[^A-Z0-9]/g, "").trim();
 
   // Dynamic parser to extract numeric quantities and scale units (e.g., "50ml", "250 ml", "100 g")
   const parseVolume = (val: string) => {
