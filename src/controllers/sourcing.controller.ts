@@ -401,152 +401,233 @@ export const syncInventory = async (req: any, res: any, next: any) => {
 };
 
 // Full-Automated Background Direct Sync: Scraping multiple pages sequentially and updating DB internally.
+// Global, in-memory task registry to securely isolate background threads and broadcast live telemetry
+let activeSyncTask: {
+  isRunning: boolean;
+  status: string;
+  progressMsg: string;
+  result: any;
+  error: any;
+  updatedAt: number;
+} = {
+  isRunning: false,
+  status: "idle",
+  progressMsg: "Engine standing by...",
+  result: null,
+  error: null,
+  updatedAt: Date.now()
+};
+
+// Read-only Telemetry Hub: Allows the frontend to poll the exact live progress of background crawlers safely!
+export const getSyncStatus = async (req: any, res: any) => {
+  res.status(200).json({
+    success: true,
+    ...activeSyncTask
+  });
+};
+
+// Non-Blocking Hyper-Asynchronous Task Spawner: Instantly spawns thread and returns 202 to eliminate VPS timeouts!
 export const autoSyncFullInventory = async (req: any, res: any, next: any) => {
-  req.setTimeout(600000); // Extend connection timeout tolerance to 10 minutes for full crawls
-  let browser: any;
   try {
-    console.log("🚀 Initiating Full Background Automated Stock Sync...");
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-    });
-
-    const page = await browser.newPage();
-    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
-    await page.setViewport({ width: 1440, height: 900 });
-
-    // 1. High-Speed Login Routine
-    console.log("📍 Logging into Koba portal...");
-    await page.goto("https://www.kobareseller.com/login", { waitUntil: "domcontentloaded", timeout: 20000 });
-    await page.waitForSelector("#email", { timeout: 10000 });
-    
-    const email = process.env.KOBA_EMAIL;
-    const password = process.env.KOBA_PASSWORD;
-    if (!email || !password) throw new Error("Missing configuration: KOBA_EMAIL / KOBA_PASSWORD.");
-
-    await page.type("#email", email);
-    await page.type("#password", password);
-    const submitBtn = await page.$("button[type='submit']");
-    if (submitBtn) { await submitBtn.click(); } else {
-      await page.evaluate(() => {
-        const btn = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.toLowerCase().includes("log in"));
-        if (btn) btn.click();
+    // 1. Lockout mechanism: Prevent parallel thread collison or accidental double-triggers
+    if (activeSyncTask.isRunning) {
+      return res.status(200).json({
+        success: true,
+        alreadyRunning: true,
+        message: "An automated stock sync is already executing in the background.",
+        status: activeSyncTask.status,
+        progressMsg: activeSyncTask.progressMsg
       });
     }
-    await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15000 });
-    await page.close(); // Close original login page context to preserve RAM
-    console.log("✅ Login Successful. Launching Concurrent Multi-page Scan...");
 
-    // 2. High-Performance Concurrent Deep Crawl Loop (Supports Dynamic Deep Scanning)
-    let allFoundProducts: any[] = [];
-    const MAX_PAGES = 100; // Dynamically scan up to 100 pages (1,000 items) for absolute, 100% catalog coverage!
-
-    // High-speed dynamic concurrency parser
-    const scrapePageConcurrently = async (pageNum: number) => {
-      const tab = await browser.newPage();
-      try {
-        await tab.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
-        await tab.setViewport({ width: 1440, height: 900 });
-        
-        console.log(`🚀 Scanning page ${pageNum}...`);
-        // Request with per_page=50 in case Koba API accepts higher payload boundaries
-        await tab.goto(`https://www.kobareseller.com/dashboard/products?per_page=50&page=${pageNum}`, { 
-          waitUntil: "domcontentloaded", 
-          timeout: 20000 
-        });
-
-        // Wait for selector to mount and inject a dynamic stabilizer micro-delay
-        await tab.waitForSelector("img", { timeout: 5000 }).catch(() => {});
-        await new Promise(resolve => setTimeout(resolve, 400));
-
-        const items = await tab.evaluate(() => {
-          const results: any[] = [];
-          const images = Array.from(document.querySelectorAll("img"));
-          
-          images.forEach((img) => {
-            const src = img.getAttribute("src") || "";
-            if (!src || src.includes("logo")) return;
-            
-            let parent = img.parentElement;
-            let iters = 0;
-            while (parent && iters < 5) {
-              if (parent.textContent?.includes("SKU:") && parent.textContent?.includes("Price")) break;
-              parent = parent.parentElement;
-              iters++;
-            }
-
-            if (parent && parent.textContent) {
-              const text = parent.textContent;
-              const skuMatch = text.match(/SKU:\s*([A-Z0-9-]+)/i) || text.match(/SKU:\s*(\d+)/i);
-              if (!skuMatch) return;
-              const rawSku = skuMatch[1];
-              const rawTitle = parent.textContent.split("SKU:")[0].trim();
-              const isOutOfStock = /Out\s*of\s*Stock/i.test(text) || /Sold\s*Out/i.test(text);
-              
-              if (!results.some(x => x.sku === rawSku)) {
-                results.push({ sku: rawSku, isOutOfStock, name: rawTitle });
-              }
-            }
-          });
-          return results;
-        });
-
-        console.log(`   -> Page ${pageNum} completed. Extracted ${items.length} products.`);
-        return items;
-      } catch (err: any) {
-        console.error(`   ❌ Error loading page ${pageNum}:`, err.message);
-        return [];
-      } finally {
-        await tab.close();
-      }
+    // 2. Clear state and reset telemetry tracker
+    activeSyncTask = {
+      isRunning: true,
+      status: "initializing",
+      progressMsg: "🚀 Booting automated browser engine...",
+      result: null,
+      error: null,
+      updatedAt: Date.now()
     };
 
-    // Execute in parallel batches of 4 (lightweight on VPS RAM, but incredibly fast!)
-    const BATCH_SIZE = 4;
-    for (let i = 1; i <= MAX_PAGES; i += BATCH_SIZE) {
-      const batchPromises = [];
-      for (let j = 0; j < BATCH_SIZE && (i + j) <= MAX_PAGES; j++) {
-        batchPromises.push(scrapePageConcurrently(i + j));
+    // 3. Spin up background thread via Non-blocking Asynchronous IIFE! (Execution proceeds in background)
+    (async () => {
+      let browser: any;
+      try {
+        console.log("🚀 Initiating Full Background Automated Stock Sync via Asynchronous Worker...");
+        browser = await puppeteer.launch({
+          headless: true,
+          args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+        });
+
+        activeSyncTask.progressMsg = "📍 Logging into Koba reseller dashboard...";
+        activeSyncTask.updatedAt = Date.now();
+
+        const page = await browser.newPage();
+        await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
+        await page.setViewport({ width: 1440, height: 900 });
+
+        // 1. High-Speed Login Routine
+        await page.goto("https://www.kobareseller.com/login", { waitUntil: "domcontentloaded", timeout: 20000 });
+        await page.waitForSelector("#email", { timeout: 10000 });
+        
+        const email = process.env.KOBA_EMAIL;
+        const password = process.env.KOBA_PASSWORD;
+        if (!email || !password) throw new Error("Missing configuration: KOBA_EMAIL / KOBA_PASSWORD.");
+
+        await page.type("#email", email);
+        await page.type("#password", password);
+        const submitBtn = await page.$("button[type='submit']");
+        if (submitBtn) { await submitBtn.click(); } else {
+          await page.evaluate(() => {
+            const btn = Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.toLowerCase().includes("log in"));
+            if (btn) btn.click();
+          });
+        }
+        await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15000 });
+        await page.close();
+        
+        activeSyncTask.status = "scanning";
+        activeSyncTask.progressMsg = "✅ Login Successful. Launching concurrent multi-page deep scan...";
+        activeSyncTask.updatedAt = Date.now();
+
+        // 2. High-Performance Concurrent Deep Crawl Loop (Supports Dynamic Deep Scanning)
+        let allFoundProducts: any[] = [];
+        const MAX_PAGES = 100; 
+
+        // High-speed dynamic concurrency parser
+        const scrapePageConcurrently = async (pageNum: number) => {
+          const tab = await browser.newPage();
+          try {
+            await tab.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
+            await tab.setViewport({ width: 1440, height: 900 });
+            
+            // Request with per_page=50 in case Koba API accepts higher payload boundaries
+            await tab.goto(`https://www.kobareseller.com/dashboard/products?per_page=50&page=${pageNum}`, { 
+              waitUntil: "domcontentloaded", 
+              timeout: 20000 
+            });
+
+            // Wait for selector to mount and inject a dynamic stabilizer micro-delay
+            await tab.waitForSelector("img", { timeout: 5000 }).catch(() => {});
+            await new Promise(resolve => setTimeout(resolve, 400));
+
+            const items = await tab.evaluate(() => {
+              const results: any[] = [];
+              const images = Array.from(document.querySelectorAll("img"));
+              
+              images.forEach((img) => {
+                const src = img.getAttribute("src") || "";
+                if (!src || src.includes("logo")) return;
+                
+                let parent = img.parentElement;
+                let iters = 0;
+                while (parent && iters < 5) {
+                  if (parent.textContent?.includes("SKU:") && parent.textContent?.includes("Price")) break;
+                  parent = parent.parentElement;
+                  iters++;
+                }
+
+                if (parent && parent.textContent) {
+                  const text = parent.textContent;
+                  const skuMatch = text.match(/SKU:\s*([A-Z0-9-]+)/i) || text.match(/SKU:\s*(\d+)/i);
+                  if (!skuMatch) return;
+                  const rawSku = skuMatch[1];
+                  const rawTitle = parent.textContent.split("SKU:")[0].trim();
+                  const isOutOfStock = /Out\s*of\s*Stock/i.test(text) || /Sold\s*Out/i.test(text);
+                  
+                  if (!results.some(x => x.sku === rawSku)) {
+                    results.push({ sku: rawSku, isOutOfStock, name: rawTitle });
+                  }
+                }
+              });
+              return results;
+            });
+
+            return items;
+          } catch (err: any) {
+            console.error(`   ❌ Error loading page ${pageNum}:`, err.message);
+            return [];
+          } finally {
+            await tab.close();
+          }
+        };
+
+        // Execute in parallel batches of 4 (lightweight on VPS RAM, but incredibly fast!)
+        const BATCH_SIZE = 4;
+        for (let i = 1; i <= MAX_PAGES; i += BATCH_SIZE) {
+          const currentEndPage = Math.min(i + BATCH_SIZE - 1, MAX_PAGES);
+          activeSyncTask.progressMsg = `🚀 Crawling catalog pages ${i} to ${currentEndPage}... (${allFoundProducts.length} items scraped)`;
+          activeSyncTask.updatedAt = Date.now();
+
+          const batchPromises = [];
+          for (let j = 0; j < BATCH_SIZE && (i + j) <= MAX_PAGES; j++) {
+            batchPromises.push(scrapePageConcurrently(i + j));
+          }
+          
+          const batchResults = await Promise.all(batchPromises);
+          
+          // Add to master array and sum items to detect catalog boundaries
+          let itemsInBatch = 0;
+          for (const results of batchResults) {
+            itemsInBatch += results.length;
+            allFoundProducts.push(...results);
+          }
+
+          // Early Escape: If an entire batch (3 pages) contains 0 items, we have hit the end of the supplier's inventory. Stop crawl!
+          if (itemsInBatch === 0) {
+            console.log("📭 Empty parallel batch detected. Supplier catalog exhausted. Terminating scan early!");
+            break;
+          }
+        }
+
+        await browser.close();
+        console.log(`🏁 High-Speed Scan Complete! Total parsed unique items: ${allFoundProducts.length}`);
+
+        // 3. Intelligent Database Processing
+        if (allFoundProducts.length === 0) {
+          throw new Error("Background scraper completed but no products were found on the supplier's portal.");
+        }
+
+        activeSyncTask.status = "processing";
+        activeSyncTask.progressMsg = `🔍 Analyzing ${allFoundProducts.length} scraped items against localized store database...`;
+        activeSyncTask.updatedAt = Date.now();
+
+        const syncResult = await executeIntelligentSync(allFoundProducts);
+
+        // Set Final Telemetry Results
+        activeSyncTask.result = {
+          totalScanned: allFoundProducts.length,
+          updatedCount: syncResult.updateCount,
+          totalMatches: syncResult.matches.length,
+          matches: syncResult.matches
+        };
+        activeSyncTask.status = "completed";
+        activeSyncTask.progressMsg = `🏁 Successfully finished! Synced ${allFoundProducts.length} items and pushed ${syncResult.updateCount} database updates!`;
+        activeSyncTask.updatedAt = Date.now();
+
+      } catch (error: any) {
+        console.error("❌ Background Sync Thread Fault:", error.message);
+        activeSyncTask.status = "failed";
+        activeSyncTask.error = error.message;
+        activeSyncTask.progressMsg = `❌ Sync Failed: ${error.message}`;
+        activeSyncTask.updatedAt = Date.now();
+      } finally {
+        activeSyncTask.isRunning = false;
+        activeSyncTask.updatedAt = Date.now();
+        if (browser) await browser.close().catch(() => {});
       }
-      
-      const batchResults = await Promise.all(batchPromises);
-      
-      // Add to master array and sum items to detect catalog boundaries
-      let itemsInBatch = 0;
-      for (const results of batchResults) {
-        itemsInBatch += results.length;
-        allFoundProducts.push(...results);
-      }
+    })();
 
-      // Early Escape: If an entire batch (3 pages) contains 0 items, we have hit the end of the supplier's inventory. Stop crawl!
-      if (itemsInBatch === 0) {
-        console.log("📭 Empty parallel batch detected. Supplier catalog exhausted. Terminating scan early!");
-        break;
-      }
-    }
-
-    await browser.close();
-    console.log(`🏁 High-Speed Scan Complete! Total parsed unique items: ${allFoundProducts.length}`);
-
-    // 3. Intelligent Database Processing
-    if (allFoundProducts.length === 0) {
-      return res.status(200).json({ success: false, message: "Scraper finished but no products were parsed from supplier dashboard." });
-    }
-
-    const syncResult = await executeIntelligentSync(allFoundProducts);
-
-    res.status(200).json({
+    // 4. Respond immediately to HTTP client (Returns in 50ms, preventing VPS timeouts!)
+    res.status(202).json({
       success: true,
-      message: `System synchronized successfully! Processed ${allFoundProducts.length} supplier items and updated ${syncResult.updateCount} localized record fields.`,
-      totalScanned: allFoundProducts.length,
-      updatedCount: syncResult.updateCount,
-      totalMatches: syncResult.matches.length,
-      matches: syncResult.matches
+      message: "Intelligent Stock Sync launched successfully in a dedicated background worker thread!",
+      status: "started"
     });
 
   } catch (error: any) {
-    console.error("❌ Background Sync Failure:", error.message);
-    if (browser) await browser.close();
-    res.status(500).json({ success: false, message: `Automation fault: ${error.message}` });
+    console.error("❌ Failed to launch Background Sync:", error.message);
+    res.status(500).json({ success: false, message: `Internal Server Error: ${error.message}` });
   }
 };

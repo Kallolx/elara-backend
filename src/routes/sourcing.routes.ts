@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { scrapeKobaProducts, syncInventory, autoSyncFullInventory } from "../controllers/sourcing.controller";
+import { scrapeKobaProducts, syncInventory, autoSyncFullInventory, getSyncStatus } from "../controllers/sourcing.controller";
 import { verifyToken, isAdmin } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -8,5 +8,6 @@ const router = Router();
 router.post("/scrape", verifyToken, isAdmin, scrapeKobaProducts);
 router.post("/sync-inventory", verifyToken, isAdmin, syncInventory);
 router.post("/auto-sync", verifyToken, isAdmin, autoSyncFullInventory);
+router.get("/sync-status", verifyToken, isAdmin, getSyncStatus);
 
 export default router;
