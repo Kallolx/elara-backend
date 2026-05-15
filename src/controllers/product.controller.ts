@@ -252,6 +252,16 @@ export const createProduct = async (
       });
     }
 
+    // Auto-calculate rating and reviewCount from reviews array if provided
+    let finalRating = rating ? Number(rating) : 0.0;
+    let finalReviewCount = reviewCount ? Number(reviewCount) : 0;
+
+    if (reviews && Array.isArray(reviews) && reviews.length > 0) {
+      finalReviewCount = reviews.length;
+      const sum = reviews.reduce((acc: number, r: any) => acc + (Number(r.rating) || 0), 0);
+      finalRating = sum / reviews.length;
+    }
+
     // Create the product atomic operation
     const product = await prisma.product.create({
       data: {
@@ -262,8 +272,8 @@ export const createProduct = async (
         brandId: brandId || null,
         subcategory,
         hasOffer: hasOffer || false,
-        rating: rating ? Number(rating) : 0.0,
-        reviewCount: reviewCount ? Number(reviewCount) : 0,
+        rating: finalRating,
+        reviewCount: finalReviewCount,
         shortDescription,
         description,
         ingredients: ingredients || [],
@@ -392,14 +402,12 @@ export const updateProduct = async (
           brandId: brandId !== undefined ? brandId || null : undefined,
           subcategory,
           hasOffer,
-          rating:
-            rating !== undefined && rating !== null
-              ? Number(rating)
-              : undefined,
-          reviewCount:
-            reviewCount !== undefined && reviewCount !== null
-              ? Number(reviewCount)
-              : undefined,
+          rating: (reviews && Array.isArray(reviews) && reviews.length > 0) 
+            ? (reviews.reduce((acc: number, r: any) => acc + (Number(r.rating) || 0), 0) / reviews.length)
+            : (rating !== undefined && rating !== null ? Number(rating) : undefined),
+          reviewCount: (reviews && Array.isArray(reviews) && reviews.length > 0)
+            ? reviews.length
+            : (reviewCount !== undefined && reviewCount !== null ? Number(reviewCount) : undefined),
           shortDescription,
           description,
           ingredients,
